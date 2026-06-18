@@ -11,7 +11,10 @@ if (-not (Test-Path ".git")) {
   throw "No git repo in $PSScriptRoot. Run .\deploy.ps1 -GitHubUser Rawlincoln first."
 }
 
+$prevErr = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $remote = git remote get-url origin 2>$null
+$ErrorActionPreference = $prevErr
 if (-not $remote) {
   throw "No git remote. Run .\deploy.ps1 -GitHubUser Rawlincoln first."
 }
