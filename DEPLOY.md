@@ -10,14 +10,21 @@ Double-click **`start-online.bat`**
 
 ## Option 2 — Permanent hosting on Render (free)
 
-1. Push this folder to GitHub:
+Same setup as **soccer-under-strategy** (which uses plain `gunicorn` + threads).
+
+1. Push to GitHub:
    ```powershell
    .\deploy.ps1 -GitHubUser Rawlincoln
    ```
-2. Go to [render.com/blueprints](https://dashboard.render.com/blueprints) → **New Blueprint Instance**
-3. Connect **Rawlincoln/pro-trader**
-4. Render reads `render.yaml` and deploys automatically
-5. You get a permanent `https://pro-trader.onrender.com` URL
+2. Open: **https://dashboard.render.com/blueprints/new?repo=https://github.com/Rawlincoln/pro-trader**
+3. Click **Apply** — Render reads `render.yaml`
+4. Wait ~3 min for build → **https://pro-trader.onrender.com**
+
+If Blueprint fails, create manually:
+- **New Web Service** → repo `Rawlincoln/pro-trader`
+- Build: `pip install -r requirements-cloud.txt`
+- Start: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`
+- Health check path: `/health`
 
 Free tier sleeps after 15 min idle; first load may take ~30s.
 
