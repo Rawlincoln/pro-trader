@@ -312,7 +312,110 @@ body {
 .ind-item .k { color: var(--muted); font-size: 0.75rem; }
 .ind-item .v { font-weight: 600; }
 
-.patterns { margin: 0.75rem 0; }
+.chart-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.chart-card-header h2 { margin: 0; }
+
+.pattern-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+.pattern-legend-empty {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.pattern-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  cursor: default;
+}
+.pattern-legend-item.bullish { border-color: var(--buy); color: var(--buy); }
+.pattern-legend-item.bearish { border-color: var(--sell); color: var(--sell); }
+.pattern-legend-item.neutral { border-color: var(--wait); color: var(--wait); }
+.pattern-legend-arrow { font-weight: 700; }
+.pattern-legend-name { font-weight: 600; }
+.pattern-legend-type {
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.patterns-section { margin: 0.75rem 0; }
+.patterns-heading {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.patterns-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.patterns-empty { font-size: 0.8rem; color: var(--muted); margin: 0.75rem 0; }
+
+.pattern-card {
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  background: var(--bg);
+  border-left: 3px solid var(--border);
+}
+.pattern-card.bullish { border-left-color: var(--buy); }
+.pattern-card.bearish { border-left-color: var(--sell); }
+.pattern-card.neutral { border-left-color: var(--wait); }
+
+.pattern-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+.pattern-bias-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+.pattern-bias-badge.bullish { background: rgba(16,185,129,0.15); color: var(--buy); }
+.pattern-bias-badge.bearish { background: rgba(239,68,68,0.15); color: var(--sell); }
+.pattern-bias-badge.neutral { background: rgba(245,158,11,0.15); color: var(--wait); }
+
+.pattern-type-badge {
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.pattern-strength {
+  font-size: 0.65rem;
+  color: var(--accent);
+  margin-left: auto;
+}
+.pattern-card-name { font-weight: 600; font-size: 0.9rem; }
+.pattern-card-desc { font-size: 0.78rem; color: var(--muted); margin-top: 0.15rem; }
+.pattern-vol {
+  display: inline-block;
+  margin-top: 0.25rem;
+  font-size: 0.65rem;
+  color: var(--buy);
+  font-weight: 600;
+}
+
 .pattern-tag {
   display: inline-block;
   padding: 0.2rem 0.6rem;

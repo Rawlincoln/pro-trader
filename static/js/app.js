@@ -155,12 +155,102 @@ function renderTradePlan(plan, exitCheck, decimals) {
     (plan.instructions || []).map(i => `<li>${i}</li>`).join("");
 }
 
+const PATTERN_COLORS = {
+  bullish: "#10b981",
+  bearish: "#ef4444",
+  neutral: "#f59e0b",
+};
+
+function patternArrow(bias) {
+  if (bias === "bullish") return "▲";
+  if (bias === "bearish") return "▼";
+  return "◆";
+}
+
+function patternShortLabel(name) {
+  return name.replace(/^(Bullish|Bearish)\s+/, "");
+}
+
+function buildPatternMarkers(patterns, candles) {
+  if (!patterns?.length || !candles?.length) return { annotations: [], markerTrace: null };
+
+  const timeSet = new Set(candles.map(c => c.time));
+  const visible = patterns.filter(p => p.time && timeSet.has(p.time));
+
+  const annotations = visible.map(p => {
+    const color = PATTERN_COLORS[p.bias] || PATTERN_COLORS.neutral;
+    const below = p.marker_position === "below";
+    return {
+      x: p.time,
+      y: p.price,
+      xref: "x",
+      yref: "y",
+      text: `<b>${patternShortLabel(p.name)}</b> ${patternArrow(p.bias)}`,
+      showarrow: true,
+      arrowhead: 2,
+      arrowsize: 0.9,
+      arrowwidth: 1.5,
+      arrowcolor: color,
+      ax: 0,
+      ay: below ? 34 : -34,
+      font: { color, size: 9 },
+      bgcolor: "rgba(17,24,39,0.9)",
+      bordercolor: color,
+      borderwidth: 1,
+      borderpad: 3,
+    };
+  });
+
+  const markerTrace = visible.length ? {
+    type: "scatter",
+    mode: "markers",
+    x: visible.map(p => p.time),
+    y: visible.map(p => p.price),
+    name: "Patterns",
+    marker: {
+      symbol: visible.map(p => p.bias === "bullish" ? "triangle-up" : p.bias === "bearish" ? "triangle-down" : "diamond"),
+      size: 11,
+      color: visible.map(p => PATTERN_COLORS[p.bias] || PATTERN_COLORS.neutral),
+      line: { color: "#111827", width: 1 },
+    },
+    hovertext: visible.map(p =>
+      `${p.name}\n${p.bias.toUpperCase()} · ${p.type}\n${p.description}`
+    ),
+    hoverinfo: "text",
+    xaxis: "x",
+    yaxis: "y",
+  } : null;
+
+  return { annotations, markerTrace };
+}
+
+function renderPatternLegend(legendId, patterns) {
+  const el = document.getElementById(legendId);
+  if (!el) return;
+
+  if (!patterns?.length) {
+    el.innerHTML = '<span class="pattern-legend-empty">No patterns on chart</span>';
+    return;
+  }
+
+  const recent = patterns.slice(-6).reverse();
+  el.innerHTML = recent.map(p => {
+    const vol = p.volume_confirmed ? '<span class="pattern-vol">VOL</span>' : "";
+    return `<span class="pattern-legend-item ${p.bias}" title="${p.description}">
+      <span class="pattern-legend-arrow">${patternArrow(p.bias)}</span>
+      <span class="pattern-legend-name">${p.name}</span>
+      <span class="pattern-legend-type">${p.type}</span>${vol}
+    </span>`;
+  }).join("");
+}
+
 function renderChart(containerId, chartData, tradePlan, tickFormat) {
   const candles = chartData.candles;
   if (!candles?.length) return;
 
   const times = candles.map(c => c.time);
   const hasVolume = candles.some(c => c.volume != null);
+  const { annotations, markerTrace } = buildPatternMarkers(chartData.patterns, candles);
 
   const traces = [{
     type: "candlestick",
@@ -206,6 +296,8 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
     });
   }
 
+  if (markerTrace) traces.push(markerTrace);
+
   const shapes = [];
   const addHLine = (price, color, dash) => {
     if (price == null) return;
@@ -235,6 +327,7 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
     margin: { l: 10, r: 60, t: 10, b: 30 },
     legend: { orientation: "h", y: 1.08, font: { size: 10 } },
     shapes,
+    annotations,
   };
 
   if (hasVolume) {
@@ -244,6 +337,9 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
   }
 
   Plotly.react(containerId, traces, layout, { responsive: true, displayModeBar: false });
+
+  const legendId = containerId === "chart-1h" ? "pattern-legend-1h" : "pattern-legend-4h";
+  renderPatternLegend(legendId, chartData.patterns);
 }
 
 function renderBreakdown(bd) {
@@ -286,12 +382,22 @@ function renderAnalysis(containerId, analysis, decimals) {
   `;
 
   if (patterns.length) {
-    html += '<div class="patterns">' + patterns.map(p => {
-      const vol = p.volume_confirmed ? " ✓vol" : "";
-      return `<span class="pattern-tag ${p.bias}" title="${p.description}">${p.name}${vol}</span>`;
-    }).join("") + "</div>";
+    html += '<div class="patterns-section"><h3 class="patterns-heading">Candle Patterns</h3><div class="patterns-list">' +
+      patterns.map(p => {
+        const vol = p.volume_confirmed ? '<span class="pattern-vol">Volume confirmed</span>' : "";
+        const biasLabel = p.bias === "bullish" ? "BULLISH" : p.bias === "bearish" ? "BEARISH" : "NEUTRAL";
+        return `<div class="pattern-card ${p.bias}">
+          <div class="pattern-card-header">
+            <span class="pattern-bias-badge ${p.bias}">${patternArrow(p.bias)} ${biasLabel}</span>
+            <span class="pattern-type-badge">${p.type}</span>
+            <span class="pattern-strength">${p.strength}</span>
+          </div>
+          <div class="pattern-card-name">${p.name}</div>
+          <div class="pattern-card-desc">${p.description}</div>${vol}
+        </div>`;
+      }).join("") + "</div></div>";
   } else {
-    html += '<p style="font-size:0.8rem;color:var(--muted)">No significant patterns detected</p>';
+    html += '<p class="patterns-empty">No significant patterns on latest candle</p>';
   }
 
   html += '<div class="levels-section">';
