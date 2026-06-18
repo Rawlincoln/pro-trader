@@ -10,6 +10,15 @@ socket.on("disconnect", () => {
   document.getElementById("connection-status").className = "status-dot offline";
 });
 
+// Poll fallback for cloud hosting when WebSocket is unavailable
+setInterval(() => {
+  if (socket.connected) return;
+  fetch(`/api/analysis/${ASSET.id}`)
+    .then(r => r.json())
+    .then(data => { if (!data.error) renderDashboard(data); })
+    .catch(() => {});
+}, 45000);
+
 socket.on("market_update", (data) => {
   if (data.asset_id && data.asset_id !== ASSET.id) return;
   if (data.error) {

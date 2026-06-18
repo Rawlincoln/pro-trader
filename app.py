@@ -29,9 +29,12 @@ from data.news_trader import build_news_trading_snapshot, run_news_monitor
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+IS_CLOUD = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
+ASYNC_MODE = "threading" if IS_CLOUD else "eventlet"
+
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "pro-trader-secret")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode=ASYNC_MODE)
 
 PORT = int(os.environ.get("PORT", 5000))
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -201,6 +204,13 @@ def get_cached_analysis(asset_id: str = DEFAULT_ASSET, force: bool = False) -> d
     return _refresh_asset(asset_id, emit=False, force=True)
 
 
+def _bg_sleep(seconds: float) -> None:
+    if ASYNC_MODE == "eventlet":
+        socketio.sleep(seconds)
+    else:
+        time.sleep(seconds)
+
+
 def background_refresh():
     asset_ids = list(ASSETS.keys())
     idx = 0
@@ -211,7 +221,7 @@ def background_refresh():
             _refresh_asset(asset_id, emit=True)
         except Exception as exc:
             logger.error("Background refresh error for %s: %s", asset_id, exc)
-        socketio.sleep(REFRESH_INTERVAL)
+        _bg_sleep(REFRESH_INTERVAL)
 
 
 def background_news_monitor():
@@ -225,15 +235,23 @@ def background_news_monitor():
                 socketio.emit("news_alert", alert)
         except Exception as exc:
             logger.error("News monitor error: %s", exc)
-        socketio.sleep(30)
+        _bg_sleep(45 if IS_CLOUD else 30)
 
 
 def prewarm_cache():
-    for asset_id in ASSETS:
+    targets = [DEFAULT_ASSET] if IS_CLOUD else list(ASSETS.keys())
+    for asset_id in targets:
         try:
             _refresh_asset(asset_id, emit=True)
         except Exception as exc:
             logger.error("Prewarm failed for %s: %s", asset_id, exc)
+
+
+def _spawn_background(target) -> None:
+    if ASYNC_MODE == "eventlet":
+        socketio.start_background_task(target)
+    else:
+        threading.Thread(target=target, daemon=True).start()
 
 
 def start_background_tasks() -> None:
@@ -241,10 +259,13 @@ def start_background_tasks() -> None:
     if _bg_started:
         return
     _bg_started = True
-    socketio.start_background_task(prewarm_cache)
-    socketio.start_background_task(background_refresh)
-    socketio.start_background_task(background_news_monitor)
-    logger.info("Background tasks started")
+    if IS_CLOUD:
+        threading.Timer(3.0, prewarm_cache).start()
+    else:
+        _spawn_background(prewarm_cache)
+    _spawn_background(background_refresh)
+    _spawn_background(background_news_monitor)
+    logger.info("Background tasks started (cloud=%s)", IS_CLOUD)
 
 
 def _render_dashboard(asset_id: str):
@@ -257,9 +278,15 @@ def _render_dashboard(asset_id: str):
     )
 
 
+@app.before_request
+def _lazy_start_workers():
+    if request.path != "/health":
+        start_background_tasks()
+
+
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "service": "pro-trader"})
+    return jsonify({"status": "ok", "service": "pro-trader", "cloud": IS_CLOUD})
 
 
 @app.route("/")
@@ -320,10 +347,6 @@ def on_connect():
         socketio.emit("market_update", entry["data"])
     else:
         socketio.start_background_task(_refresh_asset, asset_id, True, False)
-
-
-if os.environ.get("PORT"):
-    start_background_tasks()
 
 
 if __name__ == "__main__":
