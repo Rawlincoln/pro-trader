@@ -110,6 +110,18 @@ body {
 .news-stat .label { display: block; font-size: 0.72rem; color: var(--muted); }
 .news-stat .value { font-weight: 600; font-size: 0.95rem; }
 
+.fxbook-panel {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.fxbook-line { margin-bottom: 0.35rem; }
+.fxbook-line strong { color: var(--text); }
+
 .news-alert-banner {
   padding: 0.85rem 1rem; border-radius: 8px; margin-bottom: 1rem;
   font-weight: 600; animation: pulse-border 1.5s infinite;

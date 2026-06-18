@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
@@ -20,7 +21,8 @@ from analysis.indicators import add_all_indicators, indicators_to_series
 from analysis.signals import build_full_analysis
 from data.assets import ASSETS, DEFAULT_ASSET, get_asset, list_assets
 from data.calendar import calendar_risk_assessment, fetch_calendar
-from data.fetcher import fetch_live_quote, fetch_ohlc, ohlc_to_chart
+from data.fetcher import fetch_live_quote, fetch_ohlc_bundle, ohlc_to_chart
+from data.fxbook import build_fxbook_stats
 from data.news import fetch_news, news_sentiment_summary
 from data.news_trader import build_news_trading_snapshot, run_news_monitor
 
@@ -37,22 +39,37 @@ _bg_started = False
 
 _cache: dict[str, dict] = {}
 _cache_lock = threading.Lock()
+_refreshing: set[str] = set()
 REFRESH_INTERVAL = 30
+
+
+def _fetch_market_bundle(asset_id: str) -> tuple:
+    df_1h, df_4h = fetch_ohlc_bundle(asset_id)
+    quote = fetch_live_quote(asset_id, df_1h=df_1h)
+    return df_1h, df_4h, quote
 
 
 def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
     asset = get_asset(asset_id)
     try:
-        df_1h = fetch_ohlc("1h", asset_id)
-        df_4h = fetch_ohlc("4h", asset_id)
-        quote = fetch_live_quote(asset_id)
-        news = fetch_news(12, asset_id)
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            f_market = pool.submit(_fetch_market_bundle, asset_id)
+            f_news = pool.submit(fetch_news, 12, asset_id)
+            f_calendar = pool.submit(fetch_calendar, 7, asset_id)
+            f_fxbook = pool.submit(build_fxbook_stats, asset_id)
+
+            df_1h, df_4h, quote = f_market.result()
+            news = f_news.result()
+            calendar = f_calendar.result()
+            fxbook_stats = f_fxbook.result()
+
         news_sent = news_sentiment_summary(news)
-        calendar = fetch_calendar(7, asset_id)
         cal_risk = calendar_risk_assessment(calendar)
 
         full = build_full_analysis(df_1h, df_4h, news_sent, cal_risk, asset_id)
-        news_trading = build_news_trading_snapshot(asset_id)
+        news_trading = build_news_trading_snapshot(
+            asset_id, news=news, calendar=calendar, quote=quote,
+        )
 
         df_1h_ind = add_all_indicators(df_1h)
         df_4h_ind = add_all_indicators(df_4h)
@@ -62,7 +79,6 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
         news_signal = news_trading.get("combined_signal", "WAIT")
         news_conf = news_trading.get("combined_confidence", 40)
 
-        # Blend: immediate news release overrides when high confidence
         final_signal = tech_signal
         final_conf = tech_conf
         signal_source = "technical"
@@ -103,6 +119,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "calendar": calendar,
             "calendar_risk": cal_risk,
             "news_trading": news_trading,
+            "fxbook_stats": fxbook_stats,
             "charts": {
                 "1h": {
                     "candles": ohlc_to_chart(df_1h_ind, 80, asset_id),
@@ -138,27 +155,62 @@ def _serialize_analysis(analysis: dict) -> dict:
     }
 
 
-def get_cached_analysis(asset_id: str = DEFAULT_ASSET, force: bool = False) -> dict:
+def _store_analysis(asset_id: str, data: dict) -> None:
     with _cache_lock:
-        entry = _cache.get(asset_id, {"data": None, "updated_at": 0})
-        if force or entry["data"] is None or time.time() - entry["updated_at"] > REFRESH_INTERVAL:
-            entry["data"] = run_analysis(asset_id)
-            entry["updated_at"] = time.time()
-            _cache[asset_id] = entry
-        return entry["data"]
+        _cache[asset_id] = {"data": data, "updated_at": time.time()}
+
+
+def _get_cache_entry(asset_id: str) -> dict:
+    with _cache_lock:
+        return _cache.get(asset_id, {"data": None, "updated_at": 0}).copy()
+
+
+def _refresh_asset(asset_id: str, emit: bool = True, force: bool = False) -> dict:
+    with _cache_lock:
+        if asset_id in _refreshing and not force:
+            entry = _cache.get(asset_id, {"data": None})
+            return entry.get("data") or {"asset_id": asset_id, "error": "Refresh in progress"}
+        _refreshing.add(asset_id)
+
+    try:
+        data = run_analysis(asset_id)
+        _store_analysis(asset_id, data)
+        if emit and "error" not in data:
+            socketio.emit("market_update", data, room=asset_id)
+        return data
+    finally:
+        with _cache_lock:
+            _refreshing.discard(asset_id)
+
+
+def get_cached_analysis(asset_id: str = DEFAULT_ASSET, force: bool = False) -> dict:
+    entry = _get_cache_entry(asset_id)
+    data = entry["data"]
+    stale = data is None or time.time() - entry["updated_at"] > REFRESH_INTERVAL
+
+    if force:
+        return _refresh_asset(asset_id, emit=True, force=True)
+
+    if not stale:
+        return data
+
+    if data is not None:
+        socketio.start_background_task(_refresh_asset, asset_id, True, False)
+        return data
+
+    return _refresh_asset(asset_id, emit=False, force=True)
 
 
 def background_refresh():
+    asset_ids = list(ASSETS.keys())
+    idx = 0
     while True:
-        for asset_id in ASSETS:
-            try:
-                data = run_analysis(asset_id)
-                with _cache_lock:
-                    _cache[asset_id] = {"data": data, "updated_at": time.time()}
-                if "error" not in data:
-                    socketio.emit("market_update", data, room=asset_id)
-            except Exception as exc:
-                logger.error("Background refresh error for %s: %s", asset_id, exc)
+        asset_id = asset_ids[idx % len(asset_ids)]
+        idx += 1
+        try:
+            _refresh_asset(asset_id, emit=True)
+        except Exception as exc:
+            logger.error("Background refresh error for %s: %s", asset_id, exc)
         socketio.sleep(REFRESH_INTERVAL)
 
 
@@ -170,10 +222,29 @@ def background_news_monitor():
             for alert in alerts:
                 asset_id = alert.get("asset_id", DEFAULT_ASSET)
                 socketio.emit("news_alert", alert, room=asset_id)
-                socketio.emit("news_alert", alert)  # global feed
+                socketio.emit("news_alert", alert)
         except Exception as exc:
             logger.error("News monitor error: %s", exc)
-        socketio.sleep(20)
+        socketio.sleep(30)
+
+
+def prewarm_cache():
+    for asset_id in ASSETS:
+        try:
+            _refresh_asset(asset_id, emit=True)
+        except Exception as exc:
+            logger.error("Prewarm failed for %s: %s", asset_id, exc)
+
+
+def start_background_tasks() -> None:
+    global _bg_started
+    if _bg_started:
+        return
+    _bg_started = True
+    socketio.start_background_task(prewarm_cache)
+    socketio.start_background_task(background_refresh)
+    socketio.start_background_task(background_news_monitor)
+    logger.info("Background tasks started")
 
 
 def _render_dashboard(asset_id: str):
@@ -184,6 +255,11 @@ def _render_dashboard(asset_id: str):
         assets=list_assets(),
         active_asset=asset_id,
     )
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok", "service": "pro-trader"})
 
 
 @app.route("/")
@@ -231,16 +307,6 @@ def api_agent():
     return jsonify({"status": "not_running", "message": "Agent not started. Run run_agent.bat"})
 
 
-def start_background_tasks() -> None:
-    global _bg_started
-    if _bg_started:
-        return
-    _bg_started = True
-    socketio.start_background_task(background_refresh)
-    socketio.start_background_task(background_news_monitor)
-    logger.info("Background tasks started")
-
-
 @socketio.on("connect")
 def on_connect():
     start_background_tasks()
@@ -248,11 +314,14 @@ def on_connect():
     if asset_id not in ASSETS:
         asset_id = DEFAULT_ASSET
     join_room(asset_id)
-    data = get_cached_analysis(asset_id)
-    socketio.emit("market_update", data)
+
+    entry = _get_cache_entry(asset_id)
+    if entry["data"]:
+        socketio.emit("market_update", entry["data"])
+    else:
+        socketio.start_background_task(_refresh_asset, asset_id, True, False)
 
 
-# Start workers for gunicorn/cloud (no __main__ block)
 if os.environ.get("PORT"):
     start_background_tasks()
 

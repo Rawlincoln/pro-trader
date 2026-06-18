@@ -63,6 +63,7 @@ function renderDashboard(data) {
   renderAnalysis("analysis-4h", data.analysis_4h, decimals);
   renderNews(data.news);
   renderCalendar(data.calendar, data.calendar_risk);
+  renderFxbookStats(data.fxbook_stats, data.calendar_risk, data.news_sentiment);
 
   const ts = new Date(data.updated_at * 1000).toLocaleTimeString();
   document.getElementById("last-update").textContent = "Updated " + ts;
@@ -105,7 +106,11 @@ function renderSignal(data) {
   document.getElementById("confluence").textContent = data.confluence != null ? data.confluence + "/9" : "—";
   document.getElementById("trend-4h").textContent = formatTrend(data.primary_trend);
   document.getElementById("tf-aligned").textContent = data.timeframes_aligned ? "Yes" : "No";
-  document.getElementById("news-sentiment").textContent = data.news_sentiment?.overall || "—";
+  const ns = data.news_sentiment || {};
+  const sentText = ns.overall
+    ? `${ns.overall} (${ns.bullish_pct || 0}% bull / ${ns.bearish_pct || 0}% bear)`
+    : "—";
+  document.getElementById("news-sentiment").textContent = sentText;
 
   const volEl = document.getElementById("volume-signal");
   if (volEl && vol) {
@@ -314,12 +319,70 @@ function renderNews(news) {
   `).join("");
 }
 
+function renderFxbookStats(fx, calRisk, newsSent) {
+  const crowdEl = document.getElementById("fxbook-crowd");
+  const lsEl = document.getElementById("fxbook-long-short");
+  const newsCountEl = document.getElementById("fxbook-news-count");
+  const cal24El = document.getElementById("calendar-24h");
+  const panel = document.getElementById("fxbook-panel");
+
+  if (crowdEl) {
+    crowdEl.textContent = fx?.crowd_bias
+      ? `${fx.crowd_bias.toUpperCase()} (${fx.crowd_signal || "WAIT"})`
+      : "—";
+  }
+  if (lsEl) {
+    lsEl.textContent = fx?.long_pct != null
+      ? `${fx.long_pct}% / ${fx.short_pct}%`
+      : "—";
+  }
+  if (newsCountEl) {
+    const mfb = newsSent?.myfxbook_count ?? fx?.news_count ?? 0;
+    const total = newsSent?.total ?? 0;
+    newsCountEl.textContent = `${mfb} MFB / ${total} total`;
+  }
+  if (cal24El) {
+    cal24El.textContent = calRisk?.next_24h_count != null
+      ? `${calRisk.next_24h_count} events (${calRisk.high_impact || 0} high)`
+      : "—";
+  }
+  if (!panel) return;
+
+  const lines = [];
+  if (fx?.crowd_reason) lines.push(`<div class="fxbook-line"><strong>Crowd:</strong> ${fx.crowd_reason}</div>`);
+  if (fx?.popularity_pct != null) {
+    lines.push(`<div class="fxbook-line"><strong>Popularity:</strong> ${fx.popularity_pct}% of MyFXBook traders active on ${fx.symbol || "symbol"}</div>`);
+  }
+  if (fx?.total_positions) {
+    lines.push(`<div class="fxbook-line"><strong>Open Interest:</strong> ${fx.total_positions.toLocaleString()} positions · ${fx.total_volume_lots?.toLocaleString()} lots</div>`);
+  }
+  if (calRisk) {
+    lines.push(
+      `<div class="fxbook-line"><strong>Calendar:</strong> ${calRisk.total_events || 0} events · ` +
+      `${calRisk.high_impact || 0} high · ${calRisk.released_count || 0} released · ` +
+      `beats ${calRisk.beats || 0} / misses ${calRisk.misses || 0}</div>`
+    );
+  }
+  if (newsSent?.sources) {
+    const src = Object.entries(newsSent.sources).map(([k, v]) => `${k}: ${v}`).join(" · ");
+    lines.push(`<div class="fxbook-line"><strong>Sources:</strong> ${src}</div>`);
+  }
+  panel.innerHTML = lines.length ? lines.join("") : "";
+}
+
 function renderCalendar(events, risk) {
   const riskEl = document.getElementById("calendar-risk");
   if (risk) {
     riskEl.className = "calendar-risk " + (risk.risk_level || "low");
+    let stats = "";
+    if (risk.total_events != null) {
+      stats = `<br><span style="font-size:0.8rem;color:var(--muted)">` +
+        `${risk.total_events} events · ${risk.high_impact || 0} high · ${risk.next_24h_count || 0} in 24h · ` +
+        `${risk.released_count || 0} released · beats ${risk.beats || 0} / misses ${risk.misses || 0}` +
+        `</span>`;
+    }
     riskEl.innerHTML = `<strong>Event Risk: ${(risk.risk_level || "low").toUpperCase()}</strong>` +
-      (risk.warning ? `<br>${risk.warning}` : "");
+      (risk.warning ? `<br>${risk.warning}` : "") + stats;
   }
 
   const container = document.getElementById("calendar-list");
@@ -365,10 +428,22 @@ function fetchAgent() {
   fetch("/api/agent").then(r => r.json()).then(renderAgent).catch(() => {});
 }
 
+// Load cached data quickly; live updates arrive via WebSocket.
 fetch(`/api/analysis/${ASSET.id}`)
   .then(r => r.json())
-  .then(data => { if (!data.error) renderDashboard(data); })
-  .catch(err => console.error(err));
+  .then(data => {
+    if (!data.error) renderDashboard(data);
+    else if (!lastData) {
+      document.getElementById("signal-summary").textContent =
+        "Loading market data — first load may take a few seconds...";
+    }
+  })
+  .catch(() => {
+    if (!lastData) {
+      document.getElementById("signal-summary").textContent =
+        "Connecting — waiting for live data...";
+    }
+  });
 
 function renderNewsTrading(data) {
   const nt = data.news_trading;

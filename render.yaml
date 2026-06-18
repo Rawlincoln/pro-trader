@@ -1,3 +1,4 @@
+# Render Blueprint — connect at https://dashboard.render.com/blueprints
 services:
   - type: web
     name: pro-trader
@@ -5,9 +6,9 @@ services:
     plan: free
     buildCommand: pip install -r requirements-cloud.txt
     startCommand: gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT --timeout 120 app:app
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: "3.12.0"
+        value: "3.13.0"
       - key: SECRET_KEY
         generateValue: true
-    healthCheckPath: /

@@ -16,7 +16,7 @@ from analysis.news_signals import (
     combine_news_signals,
     pre_event_bias,
 )
-from data.calendar import fetch_calendar
+from data.calendar import fetch_calendar, parse_event_datetime
 from data.fetcher import fetch_live_quote
 from data.news import fetch_news
 
@@ -35,25 +35,7 @@ def _event_id(event: dict) -> str:
 
 
 def _parse_event_dt(event: dict) -> datetime | None:
-    try:
-        from zoneinfo import ZoneInfo
-
-        date_str = event.get("date", "")
-        time_str = event.get("time", "12:00pm").strip()
-        if not date_str:
-            return None
-        for fmt in ("%m-%d-%Y %I:%M%p", "%m-%d-%Y %I:%M%p", "%m-%d-%Y"):
-            try:
-                raw = f"{date_str} {time_str}".strip() if "%M" in fmt or "%p" in fmt else date_str
-                dt = datetime.strptime(raw, fmt)
-                # Forex Factory times are US Eastern
-                local = dt.replace(tzinfo=ZoneInfo("America/New_York"))
-                return local.astimezone(timezone.utc)
-            except ValueError:
-                continue
-    except Exception:
-        pass
-    return None
+    return parse_event_datetime(event)
 
 
 def _load_state() -> dict:
@@ -91,9 +73,10 @@ def _track_price_impact(
     alert_id: str,
     asset_id: str,
     price_at_alert: float,
+    current_price: float | None = None,
 ) -> dict | None:
     try:
-        current = fetch_live_quote(asset_id)["price"]
+        current = current_price if current_price is not None else fetch_live_quote(asset_id)["price"]
         change = current - price_at_alert
         pct = (change / price_at_alert * 100) if price_at_alert else 0
         return {
@@ -107,13 +90,19 @@ def _track_price_impact(
         return None
 
 
-def scan_calendar_alerts(asset_id: str, state: dict | None = None) -> tuple[list[dict], dict]:
+def scan_calendar_alerts(
+    asset_id: str,
+    state: dict | None = None,
+    events: list[dict] | None = None,
+    quote_price: float | None = None,
+) -> tuple[list[dict], dict]:
     """Scan calendar for pre-event and live-release alerts."""
     state = state or _load_state()
     alerts: list[dict] = []
     now = datetime.now(timezone.utc)
 
-    events = fetch_calendar(days_ahead=2, asset_id=asset_id)
+    events = events if events is not None else fetch_calendar(days_ahead=2, asset_id=asset_id)
+    cached_price = quote_price
     for event in events:
         eid = _event_id(event)
         event_dt = _parse_event_dt(event)
@@ -132,7 +121,9 @@ def scan_calendar_alerts(asset_id: str, state: dict | None = None) -> tuple[list
             key = f"pre_{window}"
             if 0 < mins <= window and not alerted.get(key):
                 bias = pre_event_bias(event, asset_id)
-                price = fetch_live_quote(asset_id).get("price")
+                if cached_price is None:
+                    cached_price = fetch_live_quote(asset_id).get("price")
+                price = cached_price
                 alert = {
                     "id": f"{eid}_{key}",
                     "type": "pre_event",
@@ -162,7 +153,9 @@ def scan_calendar_alerts(asset_id: str, state: dict | None = None) -> tuple[list
         # Live release alert
         if _has_actual(event.get("actual", "")) and not alerted.get("released"):
             analysis = analyze_calendar_release(event, asset_id)
-            price = fetch_live_quote(asset_id).get("price")
+            if cached_price is None:
+                cached_price = fetch_live_quote(asset_id).get("price")
+            price = cached_price
             alert = {
                 "id": f"{eid}_released",
                 "type": "calendar_release",
@@ -191,7 +184,9 @@ def scan_calendar_alerts(asset_id: str, state: dict | None = None) -> tuple[list
 
         # Post-release window (event time passed, waiting for actual)
         elif -LIVE_WINDOW_MINUTES <= mins <= 0 and not alerted.get("released") and not alerted.get("live_pending"):
-            price = fetch_live_quote(asset_id).get("price")
+            if cached_price is None:
+                cached_price = fetch_live_quote(asset_id).get("price")
+            price = cached_price
             alert = {
                 "id": f"{eid}_live_now",
                 "type": "live_pending",
@@ -216,14 +211,21 @@ def scan_calendar_alerts(asset_id: str, state: dict | None = None) -> tuple[list
     return alerts, state
 
 
-def scan_headline_alerts(asset_id: str, state: dict | None = None, limit: int = 20) -> tuple[list[dict], dict]:
+def scan_headline_alerts(
+    asset_id: str,
+    state: dict | None = None,
+    limit: int = 20,
+    articles: list[dict] | None = None,
+    quote_price: float | None = None,
+) -> tuple[list[dict], dict]:
     """Detect new breaking headlines and generate instant signals."""
     state = state or _load_state()
     alerts: list[dict] = []
     now = datetime.now(timezone.utc)
     seen = state.setdefault("seen_news", {})
 
-    articles = fetch_news(limit, asset_id)
+    articles = articles if articles is not None else fetch_news(limit, asset_id)
+    cached_price = quote_price
     for article in articles:
         link = article.get("link", "")
         if not link or seen.get(link):
@@ -245,7 +247,9 @@ def scan_headline_alerts(asset_id: str, state: dict | None = None, limit: int = 
             seen[link] = pub
             continue
 
-        price = fetch_live_quote(asset_id).get("price")
+        if cached_price is None:
+            cached_price = fetch_live_quote(asset_id).get("price")
+        price = cached_price
         alert = {
             "id": hashlib.md5(link.encode()).hexdigest()[:12],
             "type": "headline",
@@ -273,13 +277,26 @@ def scan_headline_alerts(asset_id: str, state: dict | None = None, limit: int = 
     return alerts, state
 
 
-def build_news_trading_snapshot(asset_id: str) -> dict[str, Any]:
+def build_news_trading_snapshot(
+    asset_id: str,
+    news: list[dict] | None = None,
+    calendar: list[dict] | None = None,
+    quote: dict | None = None,
+) -> dict[str, Any]:
     """Full news trading state for dashboard."""
     state = _load_state()
-    cal_alerts, state = scan_calendar_alerts(asset_id, state)
-    head_alerts, state = scan_headline_alerts(asset_id, state)
+    quote_price = quote.get("price") if quote else None
+    calendar_events = calendar if calendar is not None else fetch_calendar(days_ahead=2, asset_id=asset_id)
+    news_articles = news if news is not None else fetch_news(20, asset_id)
 
-    events = fetch_calendar(days_ahead=2, asset_id=asset_id)
+    cal_alerts, state = scan_calendar_alerts(
+        asset_id, state, events=calendar_events, quote_price=quote_price,
+    )
+    head_alerts, state = scan_headline_alerts(
+        asset_id, state, articles=news_articles, quote_price=quote_price,
+    )
+
+    events = calendar_events
     enriched_events = []
     for ev in events:
         dt = _parse_event_dt(ev)
@@ -309,7 +326,9 @@ def build_news_trading_snapshot(asset_id: str) -> dict[str, Any]:
     for alert in (cal_alerts + head_alerts)[:10]:
         snap = state.get("price_snapshots", {}).get(alert["id"])
         if snap:
-            impact = _track_price_impact(state, alert["id"], asset_id, snap["price"])
+            impact = _track_price_impact(
+                state, alert["id"], asset_id, snap["price"], current_price=quote_price,
+            )
             if impact:
                 impacts.append({
                     "alert_id": alert["id"],
