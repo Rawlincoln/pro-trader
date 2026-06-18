@@ -18,6 +18,7 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 from analysis.indicators import add_all_indicators, indicators_to_series
+from analysis.patterns import detect_patterns_for_chart
 from analysis.signals import build_full_analysis
 from data.assets import ASSETS, DEFAULT_ASSET, get_asset, list_assets
 from data.calendar import calendar_risk_assessment, fetch_calendar
@@ -128,11 +129,13 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
                     "candles": ohlc_to_chart(df_1h_ind, 80, asset_id),
                     "indicators": indicators_to_series(df_1h_ind, 80),
                     "levels": full["analysis_1h"]["levels"],
+                    "patterns": detect_patterns_for_chart(df_1h_ind, 80),
                 },
                 "4h": {
                     "candles": ohlc_to_chart(df_4h_ind, 80, asset_id),
                     "indicators": indicators_to_series(df_4h_ind, 80),
                     "levels": full["analysis_4h"]["levels"],
+                    "patterns": detect_patterns_for_chart(df_4h_ind, 80),
                 },
             },
             "decimals": asset["decimals"],
