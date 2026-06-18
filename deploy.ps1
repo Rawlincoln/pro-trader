@@ -42,5 +42,6 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "Tip: run start-sync.bat to auto-push on every save." -ForegroundColor DarkGray
-Write-Host "Open https://dashboard.render.com/blueprints and connect $GitHubUser/$RepoName" -ForegroundColor Green
-Write-Host "Render will build from render.yaml and give you a public HTTPS URL."
+Write-Host "Open this link to deploy on Render (same as soccer-under-strategy):" -ForegroundColor Green
+Write-Host "https://dashboard.render.com/blueprints/new?repo=https://github.com/$GitHubUser/$RepoName" -ForegroundColor Cyan
+Write-Host "Render will build from render.yaml -> https://$RepoName.onrender.com"
