@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ asset.title }}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="asset-{{ asset.id }}">
+  <header class="header">
+    <div class="header-left">
+      <h1>{{ asset.title }}</h1>
+      <span class="subtitle">Multi-Timeframe Analysis · 1H + 4H Strategy</span>
+      <nav class="nav-tabs">
+        {% for a in assets %}
+        <a href="{{ a.route }}" class="nav-tab{% if a.id == active_asset %} active{% endif %}">{{ a.name }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+    <div class="header-right">
+      <div class="price-display">
+        <span class="pair">{{ asset.name }}</span>
+        <span id="live-price" class="price">—</span>
+        <span id="price-change" class="change">—</span>
+      </div>
+      <div class="status">
+        <span id="connection-status" class="status-dot offline"></span>
+        <span id="last-update">Connecting...</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    {% if asset.show_agent %}
+    <section class="agent-panel card" id="agent-panel">
+      <h2>XM Trading Agent</h2>
+      <div class="agent-grid">
+        <div class="agent-stat"><span class="label">Status</span><span id="agent-status" class="value">—</span></div>
+        <div class="agent-stat"><span class="label">Mode</span><span id="agent-mode" class="value">—</span></div>
+        <div class="agent-stat"><span class="label">Last Action</span><span id="agent-action" class="value small">—</span></div>
+        <div class="agent-stat"><span class="label">Open Positions</span><span id="agent-positions" class="value">—</span></div>
+      </div>
+      <div id="agent-log" class="agent-log"></div>
+    </section>
+    {% endif %}
+
+    <!-- News Trading Alerts -->
+    <section class="news-trading-panel card" id="news-trading-panel">
+      <div class="news-trading-header">
+        <h2>News Trading — Live Alerts</h2>
+        <div class="news-signal-badge" id="news-signal-badge">WAIT</div>
+      </div>
+      <div class="news-trading-grid">
+        <div class="news-stat"><span class="label">News Signal</span><span id="news-combined-signal" class="value">—</span></div>
+        <div class="news-stat"><span class="label">Confidence</span><span id="news-combined-conf" class="value">—</span></div>
+        <div class="news-stat"><span class="label">Signal Source</span><span id="signal-source" class="value">—</span></div>
+        <div class="news-stat"><span class="label">Active Alerts</span><span id="active-alert-count" class="value">0</span></div>
+      </div>
+      <div id="news-alert-banner" class="news-alert-banner hidden"></div>
+      <div id="active-alerts" class="active-alerts"></div>
+      <div class="news-sections">
+        <div class="news-section">
+          <h3>Upcoming Events</h3>
+          <div id="upcoming-events" class="event-list"></div>
+        </div>
+        <div class="news-section">
+          <h3>Released / Impact</h3>
+          <div id="released-events" class="event-list"></div>
+        </div>
+      </div>
+      <div id="price-impacts" class="price-impacts"></div>
+      <div id="alert-history" class="alert-history"></div>
+    </section>
+
+    <section class="signal-panel card" id="signal-panel">
+      <div class="signal-main">
+        <div id="signal-badge" class="signal-badge wait">WAIT</div>
+        <div class="signal-details">
+          <div class="confidence-bar">
+            <label>Confidence</label>
+            <div class="bar-track"><div id="confidence-fill" class="bar-fill" style="width:0%"></div></div>
+            <span id="confidence-text">0%</span>
+          </div>
+          <p id="signal-summary" class="signal-summary">Loading analysis...</p>
+        </div>
+      </div>
+      <div class="score-grid">
+        <div class="score-item"><span class="label">Combined Score</span><span id="combined-score" class="value">—</span></div>
+        <div class="score-item"><span class="label">Confluence</span><span id="confluence" class="value">—</span></div>
+        <div class="score-item"><span class="label">4H Trend</span><span id="trend-4h" class="value">—</span></div>
+        <div class="score-item"><span class="label">TF Aligned</span><span id="tf-aligned" class="value">—</span></div>
+        <div class="score-item"><span class="label">Volume</span><span id="volume-signal" class="value">—</span></div>
+        <div class="score-item"><span class="label">News Sentiment</span><span id="news-sentiment" class="value">—</span></div>
+      </div>
+    </section>
+
+    <section class="trade-plan card">
+      <h2>Trade Plan — Entry & Exit</h2>
+      <div class="trade-grid">
+        <div class="trade-level entry"><span class="tl-label">ENTRY</span><span id="tp-entry" class="tl-value">—</span></div>
+        <div class="trade-level sl"><span class="tl-label">STOP LOSS</span><span id="tp-sl" class="tl-value">—</span></div>
+        <div class="trade-level tp"><span class="tl-label">TAKE PROFIT 1</span><span id="tp-tp1" class="tl-value">—</span></div>
+        <div class="trade-level tp"><span class="tl-label">TAKE PROFIT 2</span><span id="tp-tp2" class="tl-value">—</span></div>
+        <div class="trade-level tp"><span class="tl-label">TAKE PROFIT 3</span><span id="tp-tp3" class="tl-value">—</span></div>
+        <div class="trade-level rr"><span class="tl-label">RISK:REWARD</span><span id="tp-rr" class="tl-value">—</span></div>
+      </div>
+      <div class="trade-triggers">
+        <div class="trigger"><strong>Entry Trigger:</strong> <span id="entry-trigger">—</span></div>
+        <div class="trigger"><strong>Exit Trigger:</strong> <span id="exit-trigger">—</span></div>
+        <div id="exit-alert" class="exit-alert hidden"></div>
+      </div>
+      <ul id="instructions" class="instructions"></ul>
+    </section>
+
+    <section class="charts-row">
+      <div class="card chart-card">
+        <h2>1H Chart</h2>
+        <div id="chart-1h" class="chart"></div>
+      </div>
+      <div class="card chart-card">
+        <h2>4H Chart</h2>
+        <div id="chart-4h" class="chart"></div>
+      </div>
+    </section>
+
+    <section class="analysis-row">
+      <div class="card">
+        <h2>1H Analysis</h2>
+        <div id="analysis-1h" class="analysis-content"></div>
+      </div>
+      <div class="card">
+        <h2>4H Analysis</h2>
+        <div id="analysis-4h" class="analysis-content"></div>
+      </div>
+    </section>
+
+    <section class="bottom-row">
+      <div class="card">
+        <h2>{{ asset.news_title }}</h2>
+        <div id="news-list" class="news-list"></div>
+      </div>
+      <div class="card">
+        <h2>{{ asset.calendar_title }}</h2>
+        <div id="calendar-risk" class="calendar-risk"></div>
+        <div id="calendar-list" class="calendar-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Disclaimer: For educational purposes only. Not financial advice. Trading carries significant risk.</p>
+    <button id="refresh-btn" class="refresh-btn">Refresh Now</button>
+  </footer>
+
+  <script>
+    window.ASSET = {
+      id: "{{ asset.id }}",
+      name: "{{ asset.name }}",
+      decimals: {{ asset.decimals }},
+      chartTickFormat: "{{ asset.chart_tick_format }}",
+      calendarEmpty: "{{ asset.calendar_empty }}",
+      showAgent: {{ "true" if asset.show_agent else "false" }}
+    };
+  </script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

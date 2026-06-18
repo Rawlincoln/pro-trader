@@ -1,0 +1,23 @@
+{
+  "broker": "XM",
+  "mt5_path": "C:\\Program Files\\XM Global MT5\\terminal64.exe",
+  "account_login": 12345678,
+  "account_password": "YOUR_XM_PASSWORD",
+  "account_server": "XMGlobal-MT5 3",
+  "symbol": "EURUSD",
+  "magic_number": 20250618,
+  "enabled": true,
+  "dry_run": true,
+  "allow_live_trading": false,
+  "min_confidence": 55.0,
+  "risk_percent": 1.0,
+  "max_lot_size": 1.0,
+  "min_lot_size": 0.01,
+  "max_open_positions": 1,
+  "check_interval_seconds": 60,
+  "partial_close_at_tp1": true,
+  "tp1_close_percent": 50,
+  "move_sl_to_breakeven_at_tp1": true,
+  "close_on_signal_reversal": true,
+  "skip_high_impact_events": true
+}
