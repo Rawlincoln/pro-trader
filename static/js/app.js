@@ -175,7 +175,10 @@ function buildPatternMarkers(patterns, candles) {
   if (!patterns?.length || !candles?.length) return { annotations: [], markerTrace: null };
 
   const timeSet = new Set(candles.map(c => c.time));
-  const visible = patterns.filter(p => p.time && timeSet.has(p.time));
+  const visible = patterns
+    .filter(p => p.time && timeSet.has(p.time))
+    .sort((a, b) => a.time.localeCompare(b.time))
+    .slice(-15);
 
   const annotations = visible.map(p => {
     const color = PATTERN_COLORS[p.bias] || PATTERN_COLORS.neutral;
