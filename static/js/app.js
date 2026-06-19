@@ -430,9 +430,10 @@ function renderAnalysis(containerId, analysis, decimals) {
     ${renderBreakdown(bd)}
   `;
 
-  if (patterns.length) {
-    html += '<div class="patterns-section"><h3 class="patterns-heading">Candle Patterns</h3><div class="patterns-list">' +
-      patterns.map(p => {
+  const primary = analysis.primary_pattern || patterns[0];
+  if (primary) {
+    html += '<div class="patterns-section"><h3 class="patterns-heading">Active Pattern (Signal)</h3><div class="patterns-list">' +
+      [primary].map(p => {
         const vol = p.volume_confirmed ? '<span class="pattern-vol">Volume confirmed</span>' : "";
         const biasLabel = p.bias === "bullish" ? "BULLISH" : p.bias === "bearish" ? "BEARISH" : "NEUTRAL";
         return `<div class="pattern-card ${p.bias}">
@@ -446,7 +447,7 @@ function renderAnalysis(containerId, analysis, decimals) {
         </div>`;
       }).join("") + "</div></div>";
   } else {
-    html += '<p class="patterns-empty">No significant patterns on latest candle</p>';
+    html += '<p class="patterns-empty">No pattern aligned with current signal on latest candle</p>';
   }
 
   html += '<div class="levels-section">';

@@ -326,15 +326,32 @@ body {
 }
 .chart-draw-hint.hidden { display: none; }
 
+.chart-expand-btn {
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chart-expand-btn:hover {
+  background: rgba(59, 130, 246, 0.22);
+  color: #fff;
+}
+
 .chart-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 99999;
   background: #0b1220;
   display: flex;
   flex-direction: column;
 }
-.chart-fullscreen.hidden { display: none; }
+.chart-fullscreen.hidden { display: none !important; }
+.chart-fullscreen:not(.hidden) { display: flex !important; }
 body.chart-fs-open { overflow: hidden; }
 
 .chart-fullscreen-header {
@@ -369,6 +386,7 @@ body.chart-fs-open { overflow: hidden; }
   flex: 1;
   min-height: 0;
   width: 100%;
+  height: calc(100vh - 58px);
 }
 
 /* Analysis */

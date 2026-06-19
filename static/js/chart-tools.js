@@ -143,6 +143,8 @@ const ChartTools = (() => {
     if (!chartId || !tool) return;
 
     if (tool === "fullscreen") {
+      e.preventDefault();
+      e.stopPropagation();
       openFullscreen(chartId);
       return;
     }
@@ -328,13 +330,21 @@ const ChartTools = (() => {
     });
   }
 
+  function resizeFullscreenPlot() {
+    const plot = document.getElementById("chart-fullscreen-plot");
+    if (plot && plot.data) {
+      Plotly.Plots.resize(plot);
+    }
+  }
+
   function openFullscreen(chartId) {
     const overlay = document.getElementById("chart-fullscreen");
     if (!overlay) return;
 
     state.fullscreenSourceId = chartId;
     const title = chartId === "chart-1h" ? "1H Chart" : "4H Chart";
-    document.getElementById("chart-fullscreen-title").textContent = title;
+    const titleEl = document.getElementById("chart-fullscreen-title");
+    if (titleEl) titleEl.textContent = title;
 
     const fsToolbar = document.getElementById("chart-fullscreen-toolbar");
     if (fsToolbar) {
@@ -347,24 +357,47 @@ const ChartTools = (() => {
     document.body.classList.add("chart-fs-open");
     requestRerender(chartId);
 
-    setTimeout(() => {
-      const plot = document.getElementById("chart-fullscreen-plot");
-      if (plot) Plotly.Plots.resize(plot);
-    }, 80);
+    const reqFs = overlay.requestFullscreen
+      || overlay.webkitRequestFullscreen
+      || overlay.msRequestFullscreen;
+    if (reqFs) {
+      Promise.resolve(reqFs.call(overlay)).catch(() => {});
+    }
+
+    setTimeout(resizeFullscreenPlot, 50);
+    setTimeout(resizeFullscreenPlot, 250);
   }
 
-  function closeFullscreen() {
+  function closeFullscreen(fromBrowserEvent) {
+    if (state._closing) return;
+    state._closing = true;
+
     const overlay = document.getElementById("chart-fullscreen");
-    if (!overlay) return;
-    overlay.classList.add("hidden");
-    document.body.classList.remove("chart-fs-open");
     const sourceId = state.fullscreenSourceId;
+
+    if (!fromBrowserEvent && document.fullscreenElement) {
+      const exitFs = document.exitFullscreen
+        || document.webkitExitFullscreen
+        || document.msExitFullscreen;
+      if (exitFs) {
+        Promise.resolve(exitFs.call(document)).catch(() => {}).finally(() => {
+          state._closing = false;
+        });
+      }
+    }
+
+    if (overlay) overlay.classList.add("hidden");
+    document.body.classList.remove("chart-fs-open");
     state.fullscreenSourceId = null;
+
     if (sourceId) {
       setTimeout(() => {
         const plot = document.getElementById(sourceId);
-        if (plot) Plotly.Plots.resize(plot);
-      }, 80);
+        if (plot && plot.data) Plotly.Plots.resize(plot);
+        state._closing = false;
+      }, 100);
+    } else {
+      state._closing = false;
     }
   }
 
@@ -383,9 +416,23 @@ const ChartTools = (() => {
       }
     });
 
-    document.getElementById("chart-fullscreen-close")?.addEventListener("click", closeFullscreen);
-    document.addEventListener("keydown", e => {
-      if (e.key === "Escape" && state.fullscreenSourceId) closeFullscreen();
+    document.getElementById("chart-fullscreen-close")?.addEventListener("click", () => closeFullscreen(false));
+
+    document.querySelectorAll(".chart-expand-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        openFullscreen(btn.dataset.chart);
+      });
+    });
+
+    document.addEventListener("fullscreenchange", () => {
+      if (!document.fullscreenElement && state.fullscreenSourceId) {
+        closeFullscreen(true);
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      if (state.fullscreenSourceId) resizeFullscreenPlot();
     });
   }
 
