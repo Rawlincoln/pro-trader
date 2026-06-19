@@ -18,7 +18,7 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 from analysis.indicators import add_all_indicators, indicators_to_series
-from analysis.patterns import detect_patterns_for_chart
+from analysis.patterns import pick_primary_pattern
 from analysis.signals import build_full_analysis
 from data.assets import ASSETS, DEFAULT_ASSET, get_asset, list_assets
 from data.calendar import calendar_risk_assessment, fetch_calendar
@@ -114,8 +114,8 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "timeframes_aligned": full["technical"]["timeframes_aligned"],
             "primary_trend": full["technical"]["primary_trend"],
             "fundamental_notes": full["technical"].get("fundamental_notes", []),
-            "analysis_1h": _serialize_analysis(full["analysis_1h"]),
-            "analysis_4h": _serialize_analysis(full["analysis_4h"]),
+            "analysis_1h": _serialize_analysis(full["analysis_1h"], final_signal),
+            "analysis_4h": _serialize_analysis(full["analysis_4h"], final_signal),
             "trade_plan": full["trade_plan"],
             "exit_check": full["exit_check"],
             "news": news,
@@ -129,13 +129,13 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
                     "candles": ohlc_to_chart(df_1h_ind, 80, asset_id),
                     "indicators": indicators_to_series(df_1h_ind, 80),
                     "levels": full["analysis_1h"]["levels"],
-                    "patterns": detect_patterns_for_chart(df_1h_ind, 80),
+                    "patterns": _chart_patterns(full["analysis_1h"], final_signal),
                 },
                 "4h": {
                     "candles": ohlc_to_chart(df_4h_ind, 80, asset_id),
                     "indicators": indicators_to_series(df_4h_ind, 80),
                     "levels": full["analysis_4h"]["levels"],
-                    "patterns": detect_patterns_for_chart(df_4h_ind, 80),
+                    "patterns": _chart_patterns(full["analysis_4h"], final_signal),
                 },
             },
             "decimals": asset["decimals"],
@@ -147,7 +147,21 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
         return {"asset_id": asset_id, "error": str(exc), "updated_at": time.time()}
 
 
-def _serialize_analysis(analysis: dict) -> dict:
+def _chart_patterns(analysis: dict, signal: str) -> list[dict]:
+    primary = pick_primary_pattern(
+        analysis.get("patterns", []),
+        analysis.get("bias", "neutral"),
+        signal,
+    )
+    return [primary] if primary else []
+
+
+def _serialize_analysis(analysis: dict, signal: str = "WAIT") -> dict:
+    primary = pick_primary_pattern(
+        analysis.get("patterns", []),
+        analysis.get("bias", "neutral"),
+        signal,
+    )
     return {
         "timeframe": analysis["timeframe"],
         "bias": analysis["bias"],
@@ -156,7 +170,8 @@ def _serialize_analysis(analysis: dict) -> dict:
         "confluence_count": analysis.get("confluence_count", 0),
         "indicators": analysis["indicators"],
         "levels": analysis["levels"],
-        "patterns": analysis["patterns"],
+        "patterns": [primary] if primary else [],
+        "primary_pattern": primary,
         "breakdown": analysis["breakdown"],
     }
 

@@ -220,24 +220,40 @@ def detect_patterns(df: pd.DataFrame) -> list[dict]:
     return _detect_at(df, len(df) - 1)
 
 
-def detect_patterns_for_chart(df: pd.DataFrame, limit: int = 80) -> list[dict]:
-    """Scan recent candles and return all patterns with chart coordinates."""
-    if len(df) < 3:
-        return []
+def pick_primary_pattern(
+    patterns: list[dict],
+    bias: str = "neutral",
+    signal: str = "WAIT",
+) -> dict | None:
+    """Return the single pattern most relevant to the current prediction."""
+    if not patterns:
+        return None
 
-    start = max(2, len(df) - limit)
-    seen: set[tuple[str, str]] = set()
-    all_patterns: list[dict] = []
+    target_bias: str | None = None
+    if signal == "BUY":
+        target_bias = "bullish"
+    elif signal == "SELL":
+        target_bias = "bearish"
+    elif bias in ("bullish", "bearish"):
+        target_bias = bias
 
-    for i in range(start, len(df)):
-        for p in _detect_at(df, i):
-            key = (p["name"], p["time"])
-            if key in seen:
-                continue
-            seen.add(key)
-            all_patterns.append(p)
+    strength_weight = {"strong": 3, "medium": 2, "weak": 1}
 
-    return all_patterns
+    def relevance(p: dict) -> float:
+        score = float(strength_weight.get(p.get("strength", "medium"), 1))
+        if p.get("volume_confirmed"):
+            score += 1.5
+        p_bias = p.get("bias")
+        if target_bias:
+            if p_bias == target_bias:
+                score += 6
+            elif p_bias == "neutral":
+                score += 1
+            else:
+                score -= 4
+        return score
+
+    return max(patterns, key=relevance)
 
 
 def pattern_bias_score(patterns: list[dict]) -> int:

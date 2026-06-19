@@ -183,10 +183,7 @@ function buildPatternMarkers(patterns, candles) {
   if (!patterns?.length || !candles?.length) return { annotations: [], markerTrace: null };
 
   const timeSet = new Set(candles.map(c => c.time));
-  const visible = patterns
-    .filter(p => p.time && timeSet.has(p.time))
-    .sort((a, b) => a.time.localeCompare(b.time))
-    .slice(-15);
+  const visible = patterns.filter(p => p?.time && timeSet.has(p.time)).slice(0, 1);
 
   const annotations = visible.map(p => {
     const color = PATTERN_COLORS[p.bias] || PATTERN_COLORS.neutral;
@@ -244,8 +241,12 @@ function renderPatternLegend(legendId, patterns) {
     return;
   }
 
-  const recent = patterns.slice(-6).reverse();
-  el.innerHTML = recent.map(p => {
+  const primary = patterns[0];
+  if (!primary) {
+    el.innerHTML = '<span class="pattern-legend-empty">No active pattern</span>';
+    return;
+  }
+  el.innerHTML = [primary].map(p => {
     const vol = p.volume_confirmed ? '<span class="pattern-vol">VOL</span>' : "";
     return `<span class="pattern-legend-item ${p.bias}" title="${p.description}">
       <span class="pattern-legend-arrow">${patternArrow(p.bias)}</span>
@@ -257,10 +258,22 @@ function renderPatternLegend(legendId, patterns) {
 
 function rerenderChartBySource(sourceChartId) {
   const st = chartRenderState[sourceChartId];
-  if (!st) return;
-  renderChart(sourceChartId, st.chartData, st.tradePlan, st.tickFormat);
+  const tickFmt = (lastData?.chart_tick_format) || ASSET.chartTickFormat;
+  const plan = lastData?.trade_plan;
+
+  if (st) {
+    renderChart(sourceChartId, st.chartData, st.tradePlan, st.tickFormat);
+    if (ChartTools.isFullscreen(sourceChartId)) {
+      renderChart("chart-fullscreen-plot", st.chartData, st.tradePlan, st.tickFormat);
+    }
+    return;
+  }
+
+  if (!lastData?.charts) return;
+  const tf = sourceChartId === "chart-1h" ? "1h" : "4h";
+  renderChart(sourceChartId, lastData.charts[tf], plan, tickFmt);
   if (ChartTools.isFullscreen(sourceChartId)) {
-    renderChart("chart-fullscreen-plot", st.chartData, st.tradePlan, st.tickFormat);
+    renderChart("chart-fullscreen-plot", lastData.charts[tf], plan, tickFmt);
   }
 }
 
