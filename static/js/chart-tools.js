@@ -301,8 +301,8 @@ const ChartTools = (() => {
 
   function bindPlotEvents(plotId) {
     const el = document.getElementById(plotId);
-    if (!el) return;
-    el.removeAllListeners?.("plotly_click");
+    if (!el || el._chartToolsBound) return;
+    el._chartToolsBound = true;
     el.on("plotly_click", evt => onPlotClick(plotId, evt));
     el.on("plotly_doubleclick", () => {
       Plotly.relayout(plotId, { "xaxis.autorange": true, "yaxis.autorange": true });

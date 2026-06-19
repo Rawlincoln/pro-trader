@@ -123,16 +123,24 @@
       <div class="card chart-card">
         <div class="chart-card-header">
           <h2>1H Chart</h2>
+          <div class="chart-toolbar" data-chart="chart-1h"></div>
           <div id="pattern-legend-1h" class="pattern-legend"></div>
         </div>
-        <div id="chart-1h" class="chart"></div>
+        <div class="chart-wrap">
+          <div id="chart-hint-1h" class="chart-draw-hint hidden"></div>
+          <div id="chart-1h" class="chart"></div>
+        </div>
       </div>
       <div class="card chart-card">
         <div class="chart-card-header">
           <h2>4H Chart</h2>
+          <div class="chart-toolbar" data-chart="chart-4h"></div>
           <div id="pattern-legend-4h" class="pattern-legend"></div>
         </div>
-        <div id="chart-4h" class="chart"></div>
+        <div class="chart-wrap">
+          <div id="chart-hint-4h" class="chart-draw-hint hidden"></div>
+          <div id="chart-4h" class="chart"></div>
+        </div>
       </div>
     </section>
 
@@ -160,6 +168,15 @@
     </section>
   </main>
 
+  <div id="chart-fullscreen" class="chart-fullscreen hidden">
+    <div class="chart-fullscreen-header">
+      <h2 id="chart-fullscreen-title">Chart</h2>
+      <div id="chart-fullscreen-toolbar" class="chart-toolbar"></div>
+      <button type="button" id="chart-fullscreen-close" class="chart-fs-close">Exit Fullscreen</button>
+    </div>
+    <div id="chart-fullscreen-plot" class="chart-fullscreen-plot"></div>
+  </div>
+
   <footer class="footer">
     <p>Disclaimer: For educational purposes only. Not financial advice. Trading carries significant risk.</p>
     <button id="refresh-btn" class="refresh-btn">Refresh Now</button>
@@ -175,6 +192,7 @@
       showAgent: {{ "true" if asset.show_agent else "false" }}
     };
   </script>
+  <script src="/static/js/chart-tools.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

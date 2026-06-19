@@ -1,6 +1,7 @@
 const ASSET = window.ASSET || { id: "eurusd", decimals: 5, chartTickFormat: ".5f", showAgent: true };
 const socket = io({ query: { asset: ASSET.id } });
 let lastData = null;
+const chartRenderState = {};
 
 socket.on("connect", () => {
   document.getElementById("connection-status").className = "status-dot online";
@@ -66,8 +67,15 @@ function renderDashboard(data) {
   renderSignal(data);
   renderNewsTrading(data);
   renderTradePlan(data.trade_plan, data.exit_check, decimals);
-  renderChart("chart-1h", data.charts["1h"], data.trade_plan, data.chart_tick_format || ASSET.chartTickFormat);
-  renderChart("chart-4h", data.charts["4h"], data.trade_plan, data.chart_tick_format || ASSET.chartTickFormat);
+  const tickFmt = data.chart_tick_format || ASSET.chartTickFormat;
+  const plan = data.trade_plan;
+  renderChart("chart-1h", data.charts["1h"], plan, tickFmt);
+  renderChart("chart-4h", data.charts["4h"], plan, tickFmt);
+  if (ChartTools.isFullscreen("chart-1h")) {
+    renderChart("chart-fullscreen-plot", data.charts["1h"], plan, tickFmt);
+  } else if (ChartTools.isFullscreen("chart-4h")) {
+    renderChart("chart-fullscreen-plot", data.charts["4h"], plan, tickFmt);
+  }
   renderAnalysis("analysis-1h", data.analysis_1h, decimals);
   renderAnalysis("analysis-4h", data.analysis_4h, decimals);
   renderNews(data.news);
@@ -247,9 +255,21 @@ function renderPatternLegend(legendId, patterns) {
   }).join("");
 }
 
+function rerenderChartBySource(sourceChartId) {
+  const st = chartRenderState[sourceChartId];
+  if (!st) return;
+  renderChart(sourceChartId, st.chartData, st.tradePlan, st.tickFormat);
+  if (ChartTools.isFullscreen(sourceChartId)) {
+    renderChart("chart-fullscreen-plot", st.chartData, st.tradePlan, st.tickFormat);
+  }
+}
+
 function renderChart(containerId, chartData, tradePlan, tickFormat) {
   const candles = chartData.candles;
   if (!candles?.length) return;
+
+  const sourceKey = ChartTools.resolveDrawingKey(containerId);
+  chartRenderState[sourceKey] = { chartData, tradePlan, tickFormat };
 
   const times = candles.map(c => c.time);
   const hasVolume = candles.some(c => c.volume != null);
@@ -321,16 +341,20 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
   if (levels.fibonacci?.fib_618) addHLine(levels.fibonacci.fib_618, "rgba(168,85,247,0.5)", "dashdot");
   if (levels.fibonacci?.fib_382) addHLine(levels.fibonacci.fib_382, "rgba(168,85,247,0.35)", "dashdot");
 
+  shapes.push(...ChartTools.getDrawShapes(containerId, times));
+
+  const isFullscreen = containerId === "chart-fullscreen-plot";
   const layout = {
     paper_bgcolor: "#111827",
     plot_bgcolor: "#111827",
     font: { color: "#94a3b8", size: 11 },
     xaxis: { gridcolor: "#1e293b", rangeslider: { visible: false }, domain: hasVolume ? [0, 1] : [0, 1] },
     yaxis: { gridcolor: "#1e293b", tickformat: tickFormat, side: "right", domain: hasVolume ? [0.32, 1] : [0, 1] },
-    margin: { l: 10, r: 60, t: 10, b: 30 },
+    margin: { l: 10, r: 60, t: isFullscreen ? 20 : 10, b: 30 },
     legend: { orientation: "h", y: 1.08, font: { size: 10 } },
     shapes,
     annotations,
+    dragmode: ChartTools.getMode(sourceKey) === "select" ? "zoom" : false,
   };
 
   if (hasVolume) {
@@ -339,10 +363,19 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
     };
   }
 
-  Plotly.react(containerId, traces, layout, { responsive: true, displayModeBar: false });
+  Plotly.react(containerId, traces, layout, {
+    responsive: true,
+    displayModeBar: isFullscreen,
+    scrollZoom: true,
+    modeBarButtonsToRemove: ["lasso2d", "select2d"],
+  });
 
-  const legendId = containerId === "chart-1h" ? "pattern-legend-1h" : "pattern-legend-4h";
-  renderPatternLegend(legendId, chartData.patterns);
+  ChartTools.bindPlotEvents(containerId);
+
+  if (!isFullscreen) {
+    const legendId = containerId === "chart-1h" ? "pattern-legend-1h" : "pattern-legend-4h";
+    renderPatternLegend(legendId, chartData.patterns);
+  }
 }
 
 function renderBreakdown(bd) {
@@ -679,3 +712,5 @@ if ("Notification" in window && Notification.permission === "default") {
 
 fetchAgent();
 setInterval(fetchAgent, 15000);
+
+ChartTools.init(rerenderChartBySource);
