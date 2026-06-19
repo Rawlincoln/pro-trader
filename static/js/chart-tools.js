@@ -189,19 +189,28 @@ const ChartTools = (() => {
     }
   }
 
-  function clickPoint(evt) {
-    const pt = evt?.points?.[0];
-    if (!pt) return null;
-    return { x: pt.x, y: pt.y };
+  function pixelToData(plotId, clientX, clientY) {
+    const gd = document.getElementById(plotId);
+    const fl = gd?._fullLayout;
+    if (!fl) return null;
+    const bbox = gd.getBoundingClientRect();
+    const xpx = clientX - bbox.left;
+    const ypx = clientY - bbox.top;
+    const xaxis = fl.xaxis;
+    const yaxis = fl.yaxis;
+    if (!xaxis || !yaxis) return null;
+
+    let x = xaxis.p2d(xpx);
+    if (xaxis.type === "date" && typeof x === "number") {
+      x = new Date(x).toISOString();
+    }
+    const y = yaxis.p2d(ypx);
+    if (!Number.isFinite(y)) return null;
+    return { x, y };
   }
 
-  function onPlotClick(plotId, evt) {
-    const chartId = resolveDrawingKey(plotId);
+  function applyDrawPoint(chartId, pt) {
     const mode = getMode(chartId);
-    if (mode === "select") return;
-
-    const pt = clickPoint(evt);
-    if (!pt) return;
 
     if (mode === "hline") {
       addDrawing(chartId, { type: "hline", y: pt.y, color: DRAW_COLOR });
@@ -230,6 +239,16 @@ const ChartTools = (() => {
     state.pending[chartId] = null;
     addDrawing(chartId, drawing);
     updateHint(chartId);
+  }
+
+  function onPlotMouseDown(plotId, e) {
+    const chartId = resolveDrawingKey(plotId);
+    const mode = getMode(chartId);
+    if (mode === "select" || e.button !== 0) return;
+    const pt = pixelToData(plotId, e.clientX, e.clientY);
+    if (!pt) return;
+    e.preventDefault();
+    applyDrawPoint(chartId, pt);
   }
 
   function extendTrend(x0, y0, x1, y1, xMin, xMax) {
@@ -303,7 +322,7 @@ const ChartTools = (() => {
     const el = document.getElementById(plotId);
     if (!el || el._chartToolsBound) return;
     el._chartToolsBound = true;
-    el.on("plotly_click", evt => onPlotClick(plotId, evt));
+    el.addEventListener("mousedown", e => onPlotMouseDown(plotId, e));
     el.on("plotly_doubleclick", () => {
       Plotly.relayout(plotId, { "xaxis.autorange": true, "yaxis.autorange": true });
     });
