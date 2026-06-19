@@ -196,15 +196,15 @@ const ChartTools = (() => {
     const bbox = gd.getBoundingClientRect();
     const xpx = clientX - bbox.left;
     const ypx = clientY - bbox.top;
-    const xaxis = fl.xaxis;
-    const yaxis = fl.yaxis;
-    if (!xaxis || !yaxis) return null;
+    const xa = fl.xaxis;
+    const ya = fl.yaxis;
+    if (!xa?.range || !ya?.range || !xa._length || !ya._length) return null;
 
-    let x = xaxis.p2d(xpx);
-    if (xaxis.type === "date" && typeof x === "number") {
-      x = new Date(x).toISOString();
-    }
-    const y = yaxis.p2d(ypx);
+    const xFrac = (xpx - xa._offset) / xa._length;
+    const yFrac = 1 - (ypx - ya._offset) / ya._length;
+    const xRaw = xa.range[0] + xFrac * (xa.range[1] - xa.range[0]);
+    const x = xa.type === "date" ? new Date(xRaw).toISOString() : xRaw;
+    const y = ya.range[0] + yFrac * (ya.range[1] - ya.range[0]);
     if (!Number.isFinite(y)) return null;
     return { x, y };
   }
