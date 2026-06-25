@@ -79,6 +79,48 @@
       <div id="alert-history" class="alert-history"></div>
     </section>
 
+    {% if asset.id == 'bitcoin' %}
+    <section class="attention-panel card" id="attention-panel">
+      <div class="attention-header">
+        <div>
+          <h2>Attention Liquidity Monitor</h2>
+          <p class="attention-tagline">Attention is liquidity — buzz, marketing &amp; influencers recruit the next buyer</p>
+        </div>
+        <div class="attention-ali-wrap">
+          <span class="attention-ali-label">ALI</span>
+          <span id="ali-score" class="attention-ali-score">—</span>
+          <span id="ali-phase" class="attention-phase">—</span>
+        </div>
+      </div>
+      <div class="attention-signal-row">
+        <div class="attention-signal-badge wait" id="attention-signal-badge">WAIT</div>
+        <div class="attention-signal-meta">
+          <span id="attention-confidence">—</span>
+          <p id="attention-reason" class="attention-reason">Scanning narrative liquidity…</p>
+        </div>
+      </div>
+      <div class="attention-gauge">
+        <div class="attention-gauge-track">
+          <div id="ali-gauge-fill" class="attention-gauge-fill" style="width:0%"></div>
+        </div>
+        <div class="attention-gauge-labels">
+          <span>Quiet</span><span>Accumulation</span><span>Hype</span><span>Peak</span>
+        </div>
+      </div>
+      <div class="attention-components" id="attention-components"></div>
+      <div class="attention-stats">
+        <div class="attention-stat"><span class="label">Momentum</span><span id="ali-momentum" class="value">—</span></div>
+        <div class="attention-stat"><span class="label">Headlines 1h</span><span id="ali-buzz-1h" class="value">—</span></div>
+        <div class="attention-stat"><span class="label">Recruitment hits</span><span id="ali-recruit-hits" class="value">—</span></div>
+        <div class="attention-stat"><span class="label">Fear / exit talk</span><span id="ali-fear-hits" class="value">—</span></div>
+        <div class="attention-stat"><span class="label">CoinGecko trend</span><span id="ali-trending" class="value">—</span></div>
+        <div class="attention-stat"><span class="label">Price vs buzz</span><span id="ali-divergence" class="value">—</span></div>
+      </div>
+      <div id="attention-drivers" class="attention-drivers"></div>
+      <p id="attention-liquidity-note" class="attention-liquidity-note"></p>
+    </section>
+    {% endif %}
+
     <section class="signal-panel card" id="signal-panel">
       <div class="signal-main">
         <div id="signal-badge" class="signal-badge wait">WAIT</div>

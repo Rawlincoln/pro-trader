@@ -17,6 +17,7 @@ from flask_socketio import SocketIO, join_room
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
+from analysis.attention_liquidity import blend_attention_into_signal, build_attention_liquidity
 from analysis.indicators import add_all_indicators, indicators_to_series
 from analysis.patterns import pick_primary_pattern
 from analysis.signals import build_full_analysis
@@ -58,7 +59,8 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
     try:
         with ThreadPoolExecutor(max_workers=4) as pool:
             f_market = pool.submit(_fetch_market_bundle, asset_id)
-            f_news = pool.submit(fetch_news, 12, asset_id)
+            news_limit = 28 if asset_id == "bitcoin" else 12
+            f_news = pool.submit(fetch_news, news_limit, asset_id)
             f_calendar = pool.submit(fetch_calendar, 7, asset_id)
             f_fxbook = pool.submit(build_fxbook_stats, asset_id)
 
@@ -97,6 +99,21 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             final_conf = round((tech_conf * 0.4 + news_conf * 0.6), 1)
             signal_source = "news"
 
+        attention_liquidity = None
+        attention_notes: list[str] = []
+        if asset_id == "bitcoin":
+            attention_liquidity = build_attention_liquidity(
+                news=news, news_sent=news_sent, quote=quote,
+            )
+            final_signal, final_conf, signal_source, attention_notes = blend_attention_into_signal(
+                tech_signal, tech_conf, final_signal, final_conf, attention_liquidity,
+            )
+            if signal_source == "attention" and immediate:
+                signal_source = "attention+news"
+
+        fundamental_notes = list(full["technical"].get("fundamental_notes", []))
+        fundamental_notes.extend(attention_notes)
+
         return {
             "asset_id": asset_id,
             "asset_name": asset["name"],
@@ -113,7 +130,8 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "adjusted_score": full["technical"].get("adjusted_score"),
             "timeframes_aligned": full["technical"]["timeframes_aligned"],
             "primary_trend": full["technical"]["primary_trend"],
-            "fundamental_notes": full["technical"].get("fundamental_notes", []),
+            "fundamental_notes": fundamental_notes,
+            "attention_liquidity": attention_liquidity,
             "analysis_1h": _serialize_analysis(full["analysis_1h"], final_signal),
             "analysis_4h": _serialize_analysis(full["analysis_4h"], final_signal),
             "trade_plan": full["trade_plan"],
@@ -338,6 +356,14 @@ def api_refresh(asset_id: str = DEFAULT_ASSET):
 @app.route("/api/news-trading/<asset_id>")
 def api_news_trading(asset_id: str = DEFAULT_ASSET):
     return jsonify(build_news_trading_snapshot(asset_id))
+
+
+@app.route("/api/bitcoin/attention")
+def api_bitcoin_attention():
+    news = fetch_news(28, "bitcoin")
+    news_sent = news_sentiment_summary(news)
+    quote = fetch_live_quote("bitcoin")
+    return jsonify(build_attention_liquidity(news=news, news_sent=news_sent, quote=quote))
 
 
 @app.route("/api/agent")

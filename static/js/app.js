@@ -81,6 +81,7 @@ function renderDashboard(data) {
   renderNews(data.news);
   renderCalendar(data.calendar, data.calendar_risk);
   renderFxbookStats(data.fxbook_stats, data.calendar_risk, data.news_sentiment);
+  if (ASSET.id === "bitcoin") renderAttentionLiquidity(data.attention_liquidity, data);
 
   const ts = new Date(data.updated_at * 1000).toLocaleTimeString();
   document.getElementById("last-update").textContent = "Updated " + ts;
@@ -110,6 +111,9 @@ function renderSignal(data) {
   let summary = `${signal} signal with ${conf.toFixed(0)}% confidence`;
   if (data.signal_source === "news_release") summary += " [NEWS RELEASE OVERRIDE]";
   else if (data.signal_source === "news") summary += " [NEWS-DRIVEN]";
+  else if (data.signal_source === "attention") summary += " [ATTENTION LIQUIDITY]";
+  else if (data.signal_source === "attention+technical") summary += " [TECH + ATTENTION]";
+  else if (data.signal_source === "attention+news") summary += " [ATTENTION + NEWS]";
   summary += `. Confluence: ${data.confluence ?? "—"}/9. `;
   summary += `4H trend: ${formatTrend(data.primary_trend)}. `;
   if (data.timeframes_aligned) summary += "1H and 4H aligned. ";
@@ -697,6 +701,85 @@ function renderNewsTrading(data) {
   histEl.innerHTML = hist.slice(0, 8).map(h =>
     `<div class="hist-item">${h.timestamp?.slice(11, 19) || ""} [${h.type}] ${h.signal || ""} ${h.event?.slice(0, 50) || h.message?.slice(0, 50) || ""}</div>`
   ).join("");
+}
+
+const ATTENTION_COMPONENT_LABELS = {
+  buzz_volume: "News buzz",
+  marketing_influencer: "Marketing / influencers",
+  news_velocity: "Headline velocity",
+  fear_distribution: "Fear / exit talk",
+  coingecko_trending: "CoinGecko trending",
+  community_sentiment: "Community sentiment",
+};
+
+function renderAttentionLiquidity(att, data) {
+  const panel = document.getElementById("attention-panel");
+  if (!panel) return;
+  if (!att) {
+    document.getElementById("attention-reason").textContent = "Attention data loading…";
+    return;
+  }
+
+  const ali = att.index ?? 0;
+  const phase = (att.phase || "NEUTRAL").toLowerCase();
+  document.getElementById("ali-score").textContent = ali.toFixed(0);
+  const phaseEl = document.getElementById("ali-phase");
+  phaseEl.textContent = att.phase || "—";
+  phaseEl.className = "attention-phase phase-" + phase;
+
+  const sig = (att.signal || "WAIT").toLowerCase();
+  const badge = document.getElementById("attention-signal-badge");
+  badge.className = "attention-signal-badge " + sig;
+  badge.textContent = att.signal || "WAIT";
+  document.getElementById("attention-confidence").textContent =
+    `${(att.confidence || 0).toFixed(0)}% attention bias`;
+  document.getElementById("attention-reason").textContent = att.reason || "—";
+
+  document.getElementById("ali-gauge-fill").style.width = Math.min(100, ali) + "%";
+
+  const comps = att.components || {};
+  document.getElementById("attention-components").innerHTML = Object.entries(comps).map(([k, v]) => `
+    <div class="attention-comp">
+      <span class="comp-label">${ATTENTION_COMPONENT_LABELS[k] || k}</span>
+      <div class="comp-bar"><div class="comp-bar-fill" style="width:${Math.min(100, v)}%"></div></div>
+      <span class="comp-val">${Number(v).toFixed(0)}</span>
+    </div>
+  `).join("");
+
+  const mom = att.momentum ?? 0;
+  document.getElementById("ali-momentum").textContent =
+    `${mom >= 0 ? "+" : ""}${mom.toFixed(1)} ${mom > 5 ? "↑ heating" : mom < -5 ? "↓ cooling" : "→ flat"}`;
+  const counts = att.counts || {};
+  document.getElementById("ali-buzz-1h").textContent = counts.headlines_1h ?? "—";
+  document.getElementById("ali-recruit-hits").textContent = counts.recruitment_hits ?? "—";
+  document.getElementById("ali-fear-hits").textContent = counts.fear_hits ?? "—";
+
+  const gecko = att.coingecko || {};
+  const rank = gecko.trending_rank;
+  document.getElementById("ali-trending").textContent =
+    rank ? `#${rank} trending` : (gecko.trending_score ? "On radar" : "Not trending");
+
+  const div = att.divergence || {};
+  document.getElementById("ali-divergence").textContent = div.label || "—";
+
+  const drivers = att.drivers || [];
+  document.getElementById("attention-drivers").innerHTML = drivers.length
+    ? "<strong style='font-size:0.8rem;color:var(--muted)'>Top narrative drivers</strong>"
+      + drivers.map(d => `
+        <div class="attention-driver">
+          <div class="driver-title">${d.title}</div>
+          <div class="driver-meta">${d.source || ""} · net ${d.net > 0 ? "+" : ""}${d.net}</div>
+          ${d.tags?.length ? `<div class="driver-tags">${d.tags.map(t => `<span class="driver-tag">${t}</span>`).join("")}</div>` : ""}
+        </div>
+      `).join("")
+    : "<p style='color:var(--muted);font-size:0.82rem'>No strong recruitment/fear headlines in current scan</p>";
+
+  const note = document.getElementById("attention-liquidity-note");
+  let noteText = att.liquidity_label || "";
+  if (data?.signal_source?.includes("attention")) {
+    noteText += ` · Factored into main ${data.signal} signal (${(data.confidence || 0).toFixed(0)}% confidence).`;
+  }
+  note.textContent = noteText;
 }
 
 function showNewsAlertPopup(alert) {

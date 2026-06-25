@@ -612,6 +612,154 @@ body.chart-fs-open { overflow: hidden; }
 }
 .refresh-btn:hover { opacity: 0.9; }
 
+/* Bitcoin — Attention Liquidity Monitor */
+.attention-panel { border-left: 4px solid #f97316; }
+.attention-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.attention-header h2 { margin-bottom: 0.25rem; }
+.attention-tagline { color: var(--muted); font-size: 0.82rem; max-width: 520px; }
+.attention-ali-wrap { text-align: right; }
+.attention-ali-label { display: block; font-size: 0.7rem; color: var(--muted); letter-spacing: 0.08em; }
+.attention-ali-score {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: #f97316;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.attention-phase {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(249,115,22,0.15);
+  color: #fb923c;
+  border: 1px solid rgba(249,115,22,0.35);
+}
+.attention-phase.phase-quiet { background: rgba(100,116,139,0.2); color: var(--muted); border-color: var(--border); }
+.attention-phase.phase-accumulation { background: rgba(16,185,129,0.15); color: var(--buy); border-color: rgba(16,185,129,0.35); }
+.attention-phase.phase-hype { background: rgba(249,115,22,0.2); color: #fb923c; }
+.attention-phase.phase-peak { background: rgba(239,68,68,0.15); color: #fca5a5; border-color: rgba(239,68,68,0.35); }
+.attention-phase.phase-fading { background: rgba(59,130,246,0.15); color: #93c5fd; border-color: rgba(59,130,246,0.35); }
+
+.attention-signal-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.attention-signal-badge {
+  font-size: 1.3rem;
+  font-weight: 800;
+  padding: 0.45rem 1.1rem;
+  border-radius: 8px;
+  min-width: 90px;
+  text-align: center;
+}
+.attention-signal-badge.buy { background: rgba(16,185,129,0.2); color: var(--buy); }
+.attention-signal-badge.sell { background: rgba(239,68,68,0.2); color: var(--sell); }
+.attention-signal-badge.wait { background: rgba(245,158,11,0.2); color: var(--wait); }
+.attention-signal-meta #attention-confidence { font-weight: 700; color: var(--text); }
+.attention-reason { color: var(--muted); font-size: 0.85rem; margin-top: 0.2rem; }
+
+.attention-gauge { margin-bottom: 1rem; }
+.attention-gauge-track {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #334155 0%, #10b981 35%, #f97316 70%, #ef4444 100%);
+  overflow: hidden;
+  position: relative;
+}
+.attention-gauge-fill {
+  height: 100%;
+  background: rgba(255,255,255,0.85);
+  border-radius: 999px;
+  box-shadow: 0 0 8px rgba(255,255,255,0.5);
+  transition: width 0.4s ease;
+}
+.attention-gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+.attention-components {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.attention-comp {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+}
+.attention-comp .comp-label { font-size: 0.68rem; color: var(--muted); display: block; }
+.attention-comp .comp-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0.35rem 0 0.2rem;
+  overflow: hidden;
+}
+.attention-comp .comp-bar-fill { height: 100%; background: #f97316; border-radius: 2px; }
+.attention-comp .comp-val { font-size: 0.82rem; font-weight: 700; }
+
+.attention-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.attention-stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+}
+.attention-stat .label { font-size: 0.68rem; color: var(--muted); display: block; }
+.attention-stat .value { font-size: 0.9rem; font-weight: 600; }
+
+.attention-drivers { display: flex; flex-direction: column; gap: 0.45rem; }
+.attention-driver {
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.82rem;
+}
+.attention-driver .driver-title { font-weight: 600; margin-bottom: 0.2rem; }
+.attention-driver .driver-meta { color: var(--muted); font-size: 0.72rem; }
+.attention-driver .driver-tags { margin-top: 0.25rem; }
+.attention-driver .driver-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-right: 0.25rem;
+  background: rgba(249,115,22,0.15);
+  color: #fb923c;
+}
+
+.attention-liquidity-note {
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
 @media (max-width: 1100px) {
   .charts-row, .analysis-row, .bottom-row, .news-sections { grid-template-columns: 1fr; }
   .trade-grid { grid-template-columns: repeat(3, 1fr); }
