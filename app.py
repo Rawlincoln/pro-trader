@@ -28,7 +28,15 @@ from data.fxbook import build_fxbook_stats
 from data.news import fetch_news, news_sentiment_summary
 from data.news_trader import build_news_trading_snapshot, run_news_monitor
 from agent.config import load_config as load_agent_config
-from data.trade_ledger import get_balance_sheet, get_mt5_status, import_csv_deals, sync_from_mt5
+from data.trade_ledger import (
+    _sync_ledger_auto,
+    get_balance_sheet,
+    get_myfxbook_status,
+    get_mt5_status,
+    import_csv_deals,
+    sync_from_mt5,
+    sync_from_myfxbook,
+)
 from data.trade_alerts import (
     detect_price_alerts,
     detect_trade_alerts,
@@ -468,6 +476,21 @@ def api_mt5_sync():
     return jsonify(sync_from_mt5(days=days))
 
 
+@app.route("/api/myfxbook/status")
+def api_myfxbook_status():
+    return jsonify(get_myfxbook_status())
+
+
+@app.route("/api/myfxbook/accounts")
+def api_myfxbook_accounts():
+    return jsonify(get_myfxbook_status())
+
+
+@app.route("/api/myfxbook/sync", methods=["POST"])
+def api_myfxbook_sync():
+    return jsonify(sync_from_myfxbook())
+
+
 @app.route("/api/balance-sheet")
 def api_balance_sheet():
     return jsonify(get_balance_sheet())
@@ -480,13 +503,13 @@ def api_balance_sheet_import():
 
 
 def background_ledger_sync():
-    """Auto-sync MT5 every N minutes — picks up trades placed on phone."""
+    """Auto-sync MT5 or Myfxbook every N minutes — picks up phone trades."""
     while True:
         try:
             if not IS_CLOUD:
                 cfg = load_agent_config()
                 minutes = max(2, int(cfg.get("ledger_sync_minutes", 5)))
-                result = sync_from_mt5(days=90)
+                result = _sync_ledger_auto()
                 if result.get("ok"):
                     logger.info("Ledger sync: %s", result.get("message"))
                 _bg_sleep(minutes * 60)

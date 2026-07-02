@@ -16,6 +16,7 @@ from typing import Any
 from agent.config import load_config
 from agent.mt5_client import MT5Client
 from data.csv_import import parse_mt5_history_csv
+from data.myfxbook_sync import MyfxbookError, fetch_ledger_data, test_connection
 
 logger = logging.getLogger(__name__)
 
@@ -202,38 +203,55 @@ def get_mt5_status() -> dict[str, Any]:
     return result
 
 
-def _setup_checklist(cfg: dict, mt5_connected: bool = False) -> list[dict]:
+def _myfxbook_configured(cfg: dict) -> bool:
+    return bool(cfg.get("myfxbook_email") and cfg.get("myfxbook_password") and cfg.get("myfxbook_account_id"))
+
+
+def _setup_checklist(cfg: dict, mt5_connected: bool = False, myfxbook_ok: bool = False) -> list[dict]:
     config_path = ROOT / "config.json"
+    mfb_cfg = _myfxbook_configured(cfg)
     items = [
         {
             "id": "phone_trade",
-            "label": "Trade on phone — same XM account number as desktop MT5",
+            "label": "Trade on XM MT5 phone app (your normal setup)",
             "done": True,
-            "hint": "Phone trades live on XM servers; desktop MT5 downloads them automatically",
+            "hint": "Phone trades are stored on XM servers — we pull them via cloud or desktop",
+        },
+        {
+            "id": "myfxbook_link",
+            "label": "Myfxbook cloud link (best for phone-only — no desktop MT5)",
+            "done": myfxbook_ok or mfb_cfg,
+            "hint": "myfxbook.com → Add Account → MT5 → XM → account # + investor password",
+        },
+        {
+            "id": "myfxbook_config",
+            "label": "config.json: myfxbook_email, myfxbook_password, myfxbook_account_id",
+            "done": mfb_cfg and myfxbook_ok,
+            "hint": "Click “List accounts” on balance page after linking on Myfxbook",
         },
         {
             "id": "mt5_installed",
-            "label": "XM MT5 on PC logged into SAME account (can stay minimized)",
+            "label": "OR: XM MT5 on PC logged into same account (alternative)",
             "done": mt5_connected,
-            "hint": "You do not trade on PC — it only syncs history from your phone trades",
+            "hint": "Desktop MT5 can stay minimized — pulls phone trades from XM servers",
         },
         {
             "id": "investor_pwd",
-            "label": "Investor (read-only) password in config.json — optional, safer",
-            "done": bool(cfg.get("investor_password")) or mt5_connected,
-            "hint": "XM MT5 → Tools → Options → Server → change investor password",
+            "label": "Investor (read-only) password — for Myfxbook or desktop MT5",
+            "done": bool(cfg.get("investor_password")) or mt5_connected or myfxbook_ok,
+            "hint": "XM app → Settings → change investor password (read-only)",
         },
         {
             "id": "algo_trading",
-            "label": "Algo Trading enabled on desktop MT5 (green button)",
+            "label": "Algo Trading on desktop MT5 (only if using desktop sync)",
             "done": mt5_connected,
-            "hint": "Required for API sync — does not affect phone trading",
+            "hint": "Skip this if you use Myfxbook cloud sync instead",
         },
         {
             "id": "config",
-            "label": "config.json with account_login + server (+ investor password)",
-            "done": config_path.exists() and bool(cfg.get("account_login")),
-            "hint": "Copy config.example.json → config.json",
+            "label": "config.json created (copy from config.example.json)",
+            "done": config_path.exists(),
+            "hint": "Local file — not committed to GitHub",
         },
     ]
     return items
@@ -258,6 +276,70 @@ def import_csv_deals(csv_text: str) -> dict[str, Any]:
         "message": msg,
         "synced_at": ledger["synced_at"],
         "balance_sheet": sheet,
+    }
+
+
+def sync_from_myfxbook() -> dict[str, Any]:
+    """Pull trade history from Myfxbook cloud (phone trades, no desktop MT5)."""
+    cfg = load_config()
+    email = cfg.get("myfxbook_email", "")
+    password = cfg.get("myfxbook_password", "")
+    account_id = cfg.get("myfxbook_account_id") or 0
+
+    try:
+        payload = fetch_ledger_data(email, password, account_id)
+    except MyfxbookError as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "setup": _setup_checklist(cfg, mt5_connected=False, myfxbook_ok=False),
+        }
+
+    with _lock:
+        ledger = _load_ledger()
+        ledger["deals"] = _merge_deals(ledger.get("deals", []), payload["deals"])
+        ledger["synced_at"] = datetime.now(timezone.utc).isoformat()
+        ledger["last_import_source"] = "myfxbook"
+        if payload.get("account_snapshot"):
+            ledger["account_snapshot"] = payload["account_snapshot"]
+        _save_ledger(ledger)
+
+    sheet = build_balance_sheet(
+        ledger["deals"],
+        ledger.get("account_snapshot"),
+        payload.get("open_positions", []),
+    )
+    return {
+        "ok": True,
+        "message": (
+            f"Synced {payload['history_count']} closed + {payload['open_count']} open trades "
+            "from Myfxbook (includes phone trades)"
+        ),
+        "synced_at": ledger["synced_at"],
+        "balance_sheet": sheet,
+        "import_source": "myfxbook",
+    }
+
+
+def get_myfxbook_status() -> dict[str, Any]:
+    cfg = load_config()
+    email = cfg.get("myfxbook_email", "")
+    password = cfg.get("myfxbook_password", "")
+    account_id = cfg.get("myfxbook_account_id") or 0
+    if not email or not password:
+        return {
+            "configured": False,
+            "connected": False,
+            "message": "Add myfxbook_email and myfxbook_password to config.json",
+            "accounts": [],
+        }
+    result = test_connection(email, password, account_id)
+    return {
+        "configured": True,
+        "connected": result.get("ok", False),
+        "message": result.get("message") or result.get("error", ""),
+        "accounts": result.get("accounts", []),
+        "account_id": account_id,
     }
 
 
@@ -294,30 +376,62 @@ def sync_from_mt5(days: int = 365) -> dict[str, Any]:
         client.disconnect()
 
 
+def _sync_ledger_auto() -> dict[str, Any]:
+    """Try MT5 first, then Myfxbook cloud — whichever is available."""
+    cfg = load_config()
+    client = MT5Client(cfg)
+    ok, _ = client.connect()
+    try:
+        client.disconnect()
+    except Exception:
+        pass
+    if ok:
+        return sync_from_mt5(days=90)
+    if _myfxbook_configured(cfg):
+        return sync_from_myfxbook()
+    return {"ok": False, "error": "No sync source — set up Myfxbook or desktop MT5"}
+
+
 def get_balance_sheet() -> dict[str, Any]:
-    """Return balance sheet from cached ledger + live MT5 if connected."""
+    """Return balance sheet from cached ledger + live MT5 or Myfxbook if connected."""
     ledger = _load_ledger()
     cfg = load_config()
     client = MT5Client(cfg)
     ok, msg = client.connect()
     account = ledger.get("account_snapshot")
     open_positions: list[dict] = []
+    mfb = get_myfxbook_status()
 
     if ok:
         account = client.get_account() or account
         open_positions = client.get_positions_all()
         client.disconnect()
+    elif mfb.get("connected") and ledger.get("last_import_source") == "myfxbook":
+        msg = mfb.get("message", "Myfxbook connected")
+        try:
+            payload = fetch_ledger_data(
+                cfg.get("myfxbook_email", ""),
+                cfg.get("myfxbook_password", ""),
+                cfg.get("myfxbook_account_id") or 0,
+            )
+            open_positions = payload.get("open_positions", [])
+            if payload.get("account_snapshot"):
+                account = payload["account_snapshot"]
+        except MyfxbookError:
+            pass
     else:
-        msg = msg
+        msg = msg or mfb.get("message", "Not connected")
 
     sheet = build_balance_sheet(ledger.get("deals", []), account, open_positions)
     return {
         "ok": True,
         "mt5_connected": ok,
         "mt5_message": msg,
+        "myfxbook": mfb,
+        "sync_source": "mt5" if ok else ("myfxbook" if mfb.get("connected") else "none"),
         "synced_at": ledger.get("synced_at"),
         "import_source": ledger.get("last_import_source"),
         "mobile_mode": True,
-        "setup": _setup_checklist(cfg, mt5_connected=ok),
+        "setup": _setup_checklist(cfg, mt5_connected=ok, myfxbook_ok=mfb.get("connected", False)),
         "balance_sheet": sheet,
     }

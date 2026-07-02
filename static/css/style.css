@@ -611,6 +611,12 @@ body.chart-fs-open { overflow: hidden; }
   font-size: 0.9rem;
 }
 .refresh-btn:hover { opacity: 0.9; }
+.refresh-btn.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  margin-left: 0.5rem;
+}
 
 /* Trade alerts — all symbols */
 .trade-alerts-panel { border-left: 4px solid #8b5cf6; }

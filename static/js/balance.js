@@ -126,16 +126,50 @@ function renderChart(daily) {
   }, { responsive: true, displayModeBar: false });
 }
 
-function setMt5Status(connected, msg) {
-  $("mt5-status-dot").className = "status-dot " + (connected ? "online" : "offline");
-  $("mt5-status-text").textContent = msg || (connected ? "MT5 connected" : "MT5 not connected");
+function setMt5Status(connected, msg, syncSource) {
+  const dot = $("mt5-status-dot");
+  const text = $("mt5-status-text");
+  if (!dot || !text) return;
+  const mfb = syncSource === "myfxbook";
+  dot.className = "status-dot " + (connected || mfb ? "online" : "offline");
+  if (mfb) {
+    text.textContent = msg || "Myfxbook cloud connected";
+  } else {
+    text.textContent = msg || (connected ? "MT5 connected" : "MT5 not connected");
+  }
+}
+
+function renderMfbAccounts(mfb) {
+  const el = $("mfb-accounts");
+  const status = $("mfb-status");
+  if (!el) return;
+  if (!mfb?.accounts?.length) {
+    if (status && mfb?.message) status.textContent = mfb.message;
+    return;
+  }
+  if (status) status.textContent = mfb.message || "";
+  const rows = mfb.accounts.map((a) => `
+    <tr>
+      <td><code>${a.id}</code></td>
+      <td>${a.name || "—"}</td>
+      <td>${a.account_id ?? "—"}</td>
+      <td>${a.server || "—"}</td>
+      <td>${a.balance != null ? Number(a.balance).toFixed(2) : "—"}</td>
+    </tr>
+  `);
+  renderTable("mfb-accounts", ["Myfxbook ID", "Name", "MT5 login", "Server", "Balance"], rows, "");
+  if (status) {
+    status.textContent = "Copy the Myfxbook ID into config.json as myfxbook_account_id";
+  }
 }
 
 async function loadBalance() {
   try {
     const res = await fetch("/api/balance-sheet");
     const data = await res.json();
-    setMt5Status(data.mt5_connected, data.mt5_message);
+    const connected = data.mt5_connected || data.sync_source === "myfxbook";
+    setMt5Status(data.mt5_connected, data.mt5_message, data.sync_source);
+    if (data.myfxbook) renderMfbAccounts(data.myfxbook);
     if (data.setup) renderSetup(data.setup);
     if (data.balance_sheet) renderBalanceSheet(data);
   } catch (e) {
@@ -155,12 +189,49 @@ async function syncMt5() {
       alert(data.error || "Could not sync from MT5");
       return;
     }
-    setMt5Status(true, data.message);
+    setMt5Status(true, data.message, "mt5");
     renderBalanceSheet({ synced_at: data.synced_at, balance_sheet: data.balance_sheet });
   } catch {
     alert("Sync failed — open XM MT5, log in, enable Algo Trading");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Sync from MT5"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Sync MT5"; }
+  }
+}
+
+async function syncMyfxbook() {
+  const btn = $("btn-sync-mfb");
+  if (btn) { btn.disabled = true; btn.textContent = "Syncing…"; }
+  try {
+    const res = await fetch("/api/myfxbook/sync", { method: "POST" });
+    const data = await res.json();
+    if (!data.ok) {
+      setMt5Status(false, data.error || "Myfxbook sync failed", "myfxbook");
+      if (data.setup) renderSetup(data.setup);
+      alert(data.error || "Could not sync from Myfxbook — check config.json");
+      return;
+    }
+    setMt5Status(true, data.message, "myfxbook");
+    renderBalanceSheet({ synced_at: data.synced_at, balance_sheet: data.balance_sheet });
+  } catch {
+    alert("Myfxbook sync failed — check email/password in config.json");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Sync Myfxbook"; }
+  }
+}
+
+async function listMyfxbookAccounts() {
+  const btn = $("btn-list-mfb");
+  const status = $("mfb-status");
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  try {
+    const res = await fetch("/api/myfxbook/accounts");
+    const data = await res.json();
+    renderMfbAccounts(data);
+    if (!data.ok && status) status.textContent = data.error || "Could not connect";
+  } catch {
+    if (status) status.textContent = "Request failed — is the app running?";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "List Myfxbook accounts"; }
   }
 }
 
@@ -196,6 +267,8 @@ async function importCsv() {
 }
 
 $("btn-sync")?.addEventListener("click", syncMt5);
+$("btn-sync-mfb")?.addEventListener("click", syncMyfxbook);
+$("btn-list-mfb")?.addEventListener("click", listMyfxbookAccounts);
 $("btn-import-csv")?.addEventListener("click", importCsv);
 loadBalance();
 setInterval(loadBalance, 60000);
