@@ -460,10 +460,9 @@ def bitcoin():
 
 @app.route("/balance")
 def balance_page():
-    return render_template(
-        "balance.html",
-        assets=list_assets(),
-    )
+    resp = app.make_response(render_template("balance.html", assets=list_assets()))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
 
 
 @app.route("/api/mt5/status")
