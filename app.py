@@ -27,7 +27,8 @@ from data.fetcher import fetch_live_quote, fetch_ohlc_bundle, ohlc_to_chart
 from data.fxbook import build_fxbook_stats
 from data.news import fetch_news, news_sentiment_summary
 from data.news_trader import build_news_trading_snapshot, run_news_monitor
-from data.trade_ledger import get_balance_sheet, get_mt5_status, sync_from_mt5
+from agent.config import load_config as load_agent_config
+from data.trade_ledger import get_balance_sheet, get_mt5_status, import_csv_deals, sync_from_mt5
 from data.trade_alerts import (
     detect_price_alerts,
     detect_trade_alerts,
@@ -368,6 +369,8 @@ def start_background_tasks() -> None:
     _spawn_background(background_refresh)
     _spawn_background(background_news_monitor)
     _spawn_background(background_price_watch)
+    if not IS_CLOUD:
+        _spawn_background(background_ledger_sync)
     logger.info("Background tasks started (cloud=%s)", IS_CLOUD)
 
 
@@ -468,6 +471,30 @@ def api_mt5_sync():
 @app.route("/api/balance-sheet")
 def api_balance_sheet():
     return jsonify(get_balance_sheet())
+
+
+@app.route("/api/balance-sheet/import", methods=["POST"])
+def api_balance_sheet_import():
+    csv_text = request.get_data(as_text=True) or ""
+    return jsonify(import_csv_deals(csv_text))
+
+
+def background_ledger_sync():
+    """Auto-sync MT5 every N minutes — picks up trades placed on phone."""
+    while True:
+        try:
+            if not IS_CLOUD:
+                cfg = load_agent_config()
+                minutes = max(2, int(cfg.get("ledger_sync_minutes", 5)))
+                result = sync_from_mt5(days=90)
+                if result.get("ok"):
+                    logger.info("Ledger sync: %s", result.get("message"))
+                _bg_sleep(minutes * 60)
+            else:
+                _bg_sleep(300)
+        except Exception as exc:
+            logger.debug("Ledger sync skipped: %s", exc)
+            _bg_sleep(120)
 
 
 @app.route("/api/analysis")

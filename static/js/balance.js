@@ -164,6 +164,38 @@ async function syncMt5() {
   }
 }
 
+async function importCsv() {
+  const input = $("csv-file");
+  const status = $("csv-import-status");
+  const btn = $("btn-import-csv");
+  const file = input?.files?.[0];
+  if (!file) {
+    if (status) status.textContent = "Choose a CSV file first";
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = "Importing…"; }
+  try {
+    const text = await file.text();
+    const res = await fetch("/api/balance-sheet/import", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      body: text,
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      if (status) status.textContent = data.error || "Import failed";
+      return;
+    }
+    if (status) status.textContent = data.message || "Imported";
+    renderBalanceSheet({ synced_at: data.synced_at, balance_sheet: data.balance_sheet });
+  } catch {
+    if (status) status.textContent = "Import failed — check file format";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Import CSV"; }
+  }
+}
+
 $("btn-sync")?.addEventListener("click", syncMt5);
+$("btn-import-csv")?.addEventListener("click", importCsv);
 loadBalance();
 setInterval(loadBalance, 60000);

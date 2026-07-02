@@ -900,6 +900,13 @@ body.chart-fs-open { overflow: hidden; }
 
 /* Balance sheet page */
 .balance-page .nav-tab.active { border-color: #8b5cf6; background: rgba(139,92,246,0.15); }
+.card-highlight { border-left: 4px solid #3b82f6; }
+.bs-mobile-lead { font-size: 0.9rem; line-height: 1.55; margin-bottom: 0.5rem; }
+.bs-mobile-tip { font-size: 0.82rem; color: var(--buy); }
+.bs-import-lead { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
+.bs-import-steps { font-size: 0.82rem; color: var(--muted); margin: 0 0 0.75rem 1.1rem; line-height: 1.5; }
+.bs-import-row { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: center; }
+.bs-import-status { font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem; }
 .balance-dashboard { max-width: 1200px; }
 .bs-setup-lead { color: var(--muted); font-size: 0.88rem; margin-bottom: 0.75rem; }
 .setup-checklist { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }

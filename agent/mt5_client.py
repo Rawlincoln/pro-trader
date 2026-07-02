@@ -68,17 +68,31 @@ class MT5Client:
             logger.info("Using MT5 path: %s", path)
 
         login = int(self.config.get("account_login") or 0)
-        password = self.config.get("account_password", "")
-        server = self.config.get("account_server", "")
+        password = (self.config.get("account_password") or "").strip()
+        investor = (self.config.get("investor_password") or "").strip()
+        server = (self.config.get("account_server") or "").strip()
 
-        if login and password and server:
-            ok = mt5.initialize(login=login, password=password, server=server, **init_kwargs)
+        ok = False
+        if login and server:
+            for pwd, label in ((password, "main"), (investor, "investor")):
+                if not pwd:
+                    continue
+                ok = mt5.initialize(login=login, password=pwd, server=server, **init_kwargs)
+                if ok:
+                    logger.info("MT5 connected with %s password", label)
+                    break
+            if not ok and not password and not investor:
+                ok = mt5.initialize(**init_kwargs)
         else:
             ok = mt5.initialize(**init_kwargs)
 
         if not ok:
             err = mt5.last_error()
-            return False, f"MT5 init failed: {err}. Open XM MT5, log in, enable Algo Trading."
+            return False, (
+                f"MT5 init failed: {err}. "
+                "Log into the SAME XM account as your phone in desktop MT5, enable Algo Trading, "
+                "or set account_login + investor_password in config.json."
+            )
 
         self.connected = True
         self._resolved_symbol = self._resolve_symbol()

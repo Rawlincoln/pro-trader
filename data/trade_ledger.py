@@ -15,6 +15,7 @@ from typing import Any
 
 from agent.config import load_config
 from agent.mt5_client import MT5Client
+from data.csv_import import parse_mt5_history_csv
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,14 @@ def _load_ledger() -> dict[str, Any]:
 def _save_ledger(data: dict[str, Any]) -> None:
     with open(LEDGER_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
+
+
+def _merge_deals(existing: list[dict], incoming: list[dict]) -> list[dict]:
+    by_ticket = {int(d["ticket"]): d for d in existing if d.get("ticket")}
+    for deal in incoming:
+        by_ticket[int(deal["ticket"])] = deal
+    merged = sorted(by_ticket.values(), key=lambda x: x.get("time", ""), reverse=True)
+    return merged[:5000]
 
 
 def _deal_net(deal: dict) -> float:
@@ -194,33 +203,62 @@ def get_mt5_status() -> dict[str, Any]:
 
 
 def _setup_checklist(cfg: dict, mt5_connected: bool = False) -> list[dict]:
+    config_path = ROOT / "config.json"
     items = [
         {
-            "id": "mt5_installed",
-            "label": "XM Global MT5 installed and open",
+            "id": "phone_trade",
+            "label": "Trade on phone — same XM account number as desktop MT5",
             "done": True,
-            "hint": "Download from xm.com if not installed",
+            "hint": "Phone trades live on XM servers; desktop MT5 downloads them automatically",
         },
         {
-            "id": "logged_in",
-            "label": "Logged into your XM account in MT5",
-            "done": bool(cfg.get("account_login")) or True,
-            "hint": "Or leave login blank in config.json — uses the open MT5 session",
+            "id": "mt5_installed",
+            "label": "XM MT5 on PC logged into SAME account (can stay minimized)",
+            "done": mt5_connected,
+            "hint": "You do not trade on PC — it only syncs history from your phone trades",
+        },
+        {
+            "id": "investor_pwd",
+            "label": "Investor (read-only) password in config.json — optional, safer",
+            "done": bool(cfg.get("investor_password")) or mt5_connected,
+            "hint": "XM MT5 → Tools → Options → Server → change investor password",
         },
         {
             "id": "algo_trading",
-            "label": "Algo Trading enabled in MT5 (toolbar button)",
+            "label": "Algo Trading enabled on desktop MT5 (green button)",
             "done": mt5_connected,
-            "hint": "Click 'Algo Trading' so it turns green",
+            "hint": "Required for API sync — does not affect phone trading",
         },
         {
             "id": "config",
-            "label": "config.json set (optional login/server for auto-connect)",
-            "done": CONFIG_PATH.exists() if (CONFIG_PATH := ROOT / "config.json") else False,
+            "label": "config.json with account_login + server (+ investor password)",
+            "done": config_path.exists() and bool(cfg.get("account_login")),
             "hint": "Copy config.example.json → config.json",
         },
     ]
     return items
+
+
+def import_csv_deals(csv_text: str) -> dict[str, Any]:
+    """Import deal history from MT5/XM CSV export (fallback when PC MT5 unavailable)."""
+    deals, msg = parse_mt5_history_csv(csv_text)
+    if not deals:
+        return {"ok": False, "error": msg}
+
+    with _lock:
+        ledger = _load_ledger()
+        ledger["deals"] = _merge_deals(ledger.get("deals", []), deals)
+        ledger["synced_at"] = datetime.now(timezone.utc).isoformat()
+        ledger["last_import_source"] = "csv"
+        _save_ledger(ledger)
+
+    sheet = build_balance_sheet(ledger["deals"], ledger.get("account_snapshot"), [])
+    return {
+        "ok": True,
+        "message": msg,
+        "synced_at": ledger["synced_at"],
+        "balance_sheet": sheet,
+    }
 
 
 def sync_from_mt5(days: int = 365) -> dict[str, Any]:
@@ -238,24 +276,17 @@ def sync_from_mt5(days: int = 365) -> dict[str, Any]:
 
         with _lock:
             ledger = _load_ledger()
-            seen = {d["ticket"] for d in ledger.get("deals", [])}
-            for deal in deals:
-                if deal["ticket"] not in seen:
-                    ledger.setdefault("deals", []).append(deal)
-                    seen.add(deal["ticket"])
-            ledger["deals"] = sorted(
-                ledger.get("deals", []),
-                key=lambda x: x.get("time", ""),
-                reverse=True,
-            )[:5000]
+            ledger["deals"] = _merge_deals(ledger.get("deals", []), deals)
             ledger["synced_at"] = datetime.now(timezone.utc).isoformat()
+            ledger["last_import_source"] = "mt5"
             ledger["account_snapshot"] = account or {}
             _save_ledger(ledger)
 
         sheet = build_balance_sheet(ledger["deals"], account, open_positions)
+        phone_note = " (includes trades placed on your phone)" if deals else ""
         return {
             "ok": True,
-            "message": f"Synced {len(deals)} deals from MT5",
+            "message": f"Synced {len(deals)} deals from MT5{phone_note}",
             "synced_at": ledger["synced_at"],
             "balance_sheet": sheet,
         }
@@ -285,6 +316,8 @@ def get_balance_sheet() -> dict[str, Any]:
         "mt5_connected": ok,
         "mt5_message": msg,
         "synced_at": ledger.get("synced_at"),
+        "import_source": ledger.get("last_import_source"),
+        "mobile_mode": True,
         "setup": _setup_checklist(cfg, mt5_connected=ok),
         "balance_sheet": sheet,
     }

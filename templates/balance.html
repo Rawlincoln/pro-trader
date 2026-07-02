@@ -29,10 +29,33 @@
   </header>
 
   <main class="dashboard balance-dashboard">
+    <section class="card bs-mobile card-highlight">
+      <h2>📱 Trade on phone — track on PC</h2>
+      <p class="bs-mobile-lead">
+        The MT5 <strong>phone app cannot plug into this dashboard directly</strong>, but your phone trades
+        are stored on <strong>XM’s servers</strong>. Log into the <strong>same account</strong> on desktop XM MT5
+        (minimized is fine) — Pro Trader pulls every deal you placed on your phone.
+      </p>
+      <p class="bs-mobile-tip">Tip: use your <strong>investor (read-only) password</strong> on PC so you never trade accidentally on desktop.</p>
+    </section>
+
     <section class="card bs-setup" id="bs-setup">
-      <h2>What you need (one-time)</h2>
-      <p class="bs-setup-lead">Trade tracking runs on your <strong>Windows PC</strong> with XM MT5 open — not on Render/cloud.</p>
+      <h2>Setup checklist</h2>
       <ul id="setup-checklist" class="setup-checklist"></ul>
+    </section>
+
+    <section class="card bs-import">
+      <h2>No desktop MT5? Import CSV</h2>
+      <p class="bs-import-lead">Export history from XM member area or MT5 desktop → upload here.</p>
+      <ol class="bs-import-steps">
+        <li>MT5 desktop: History tab → right-click → <strong>Report</strong> → save as CSV</li>
+        <li>Or XM.com → Members → trading history → export</li>
+      </ol>
+      <div class="bs-import-row">
+        <input type="file" id="csv-file" accept=".csv,.txt,.tsv" />
+        <button type="button" class="refresh-btn" id="btn-import-csv">Import CSV</button>
+      </div>
+      <p id="csv-import-status" class="bs-import-status"></p>
     </section>
 
     <section class="bs-hero card" id="bs-hero">
@@ -78,6 +101,6 @@
     <p>Data from XM MetaTrader 5 deal history · profit includes commission &amp; swap</p>
   </footer>
 
-  <script src="/static/js/balance.js?v=1"></script>
+  <script src="/static/js/balance.js?v=2"></script>
 </body>
 </html>
