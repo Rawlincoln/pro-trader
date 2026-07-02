@@ -198,11 +198,76 @@ async function syncMt5() {
   }
 }
 
-async function syncMyfxbook() {
+function mfbFormPayload() {
+  return {
+    email: ($("mfb-email")?.value || "").trim(),
+    password: $("mfb-password")?.value || "",
+    account_id: ($("mfb-account-id")?.value || "").trim(),
+  };
+}
+
+async function loadMfbConfig() {
+  try {
+    const res = await fetch("/api/myfxbook/config");
+    const data = await res.json();
+    if ($("mfb-email") && data.email) $("mfb-email").value = data.email;
+    if ($("mfb-account-id") && data.account_id) $("mfb-account-id").value = String(data.account_id);
+    const status = $("mfb-status");
+    if (status && data.config_path) {
+      status.textContent = data.has_password
+        ? `Credentials loaded from ${data.config_path}`
+        : `No password saved yet — enter Myfxbook password below`;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function saveMfbConfig(syncAfter = false) {
+  const payload = mfbFormPayload();
+  const status = $("mfb-status");
+  if (!payload.email || !payload.password) {
+    if (status) status.textContent = "Enter Myfxbook email and password first";
+    return null;
+  }
+  const btn = syncAfter ? $("btn-sync-mfb-inline") : $("btn-save-mfb");
+  if (btn) { btn.disabled = true; btn.textContent = syncAfter ? "Syncing…" : "Saving…"; }
+  try {
+    const res = await fetch("/api/myfxbook/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      if (status) status.textContent = data.error || "Save failed";
+      return null;
+    }
+    if (status) status.textContent = data.message || "Saved";
+    if (syncAfter) return syncMyfxbook(payload);
+    return data;
+  } catch {
+    if (status) status.textContent = "Save failed";
+    return null;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = syncAfter ? "Save & sync" : "Save credentials";
+    }
+  }
+}
+
+async function syncMyfxbook(inlinePayload) {
   const btn = $("btn-sync-mfb");
   if (btn) { btn.disabled = true; btn.textContent = "Syncing…"; }
+  const payload = inlinePayload || mfbFormPayload();
+  const hasInline = Boolean(payload.email && payload.password);
   try {
-    const res = await fetch("/api/myfxbook/sync", { method: "POST" });
+    const res = await fetch("/api/myfxbook/sync", {
+      method: "POST",
+      headers: hasInline ? { "Content-Type": "application/json" } : undefined,
+      body: hasInline ? JSON.stringify(payload) : undefined,
+    });
     const data = await res.json();
     if (!data.ok) {
       setMt5Status(false, data.error || "Myfxbook sync failed", "myfxbook");
@@ -222,9 +287,18 @@ async function syncMyfxbook() {
 async function listMyfxbookAccounts() {
   const btn = $("btn-list-mfb");
   const status = $("mfb-status");
+  const payload = mfbFormPayload();
+  if (!payload.email || !payload.password) {
+    if (status) status.textContent = "Enter email and password in the form first";
+    return;
+  }
   if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
   try {
-    const res = await fetch("/api/myfxbook/accounts");
+    const res = await fetch("/api/myfxbook/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
     const data = await res.json();
     renderMfbAccounts(data);
     if (!data.ok && status) status.textContent = data.error || "Could not connect";
@@ -267,8 +341,11 @@ async function importCsv() {
 }
 
 $("btn-sync")?.addEventListener("click", syncMt5);
-$("btn-sync-mfb")?.addEventListener("click", syncMyfxbook);
+$("btn-sync-mfb")?.addEventListener("click", () => syncMyfxbook());
+$("btn-sync-mfb-inline")?.addEventListener("click", () => saveMfbConfig(true));
+$("btn-save-mfb")?.addEventListener("click", () => saveMfbConfig(false));
 $("btn-list-mfb")?.addEventListener("click", listMyfxbookAccounts);
 $("btn-import-csv")?.addEventListener("click", importCsv);
+loadMfbConfig();
 loadBalance();
 setInterval(loadBalance, 60000);

@@ -73,6 +73,33 @@ def save_config(cfg: dict) -> None:
         json.dump(cfg, f, indent=2)
 
 
+def save_myfxbook_config(email: str, password: str, account_id: int | str = 0) -> dict:
+    """Persist Myfxbook credentials to config.json."""
+    cfg = load_config()
+    cfg["myfxbook_email"] = (email or "").strip()
+    if password:
+        cfg["myfxbook_password"] = password
+    if account_id:
+        try:
+            cfg["myfxbook_account_id"] = int(account_id)
+        except (TypeError, ValueError):
+            pass
+    save_config(cfg)
+    return cfg
+
+
+def myfxbook_config_public() -> dict:
+    """Return saved Myfxbook settings without exposing the password."""
+    cfg = load_config()
+    return {
+        "email": cfg.get("myfxbook_email", ""),
+        "has_password": bool(cfg.get("myfxbook_password")),
+        "account_id": cfg.get("myfxbook_account_id") or 0,
+        "config_path": str(CONFIG_PATH),
+        "config_exists": CONFIG_PATH.exists(),
+    }
+
+
 def ensure_example_config() -> None:
     if not EXAMPLE_PATH.exists():
         example = deepcopy(DEFAULT_CONFIG)

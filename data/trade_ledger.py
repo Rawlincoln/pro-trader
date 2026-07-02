@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from agent.config import load_config
+from agent.config import load_config, save_myfxbook_config
 from agent.mt5_client import MT5Client
 from data.csv_import import parse_mt5_history_csv
 from data.myfxbook_sync import MyfxbookError, fetch_ledger_data, test_connection
@@ -279,12 +279,36 @@ def import_csv_deals(csv_text: str) -> dict[str, Any]:
     }
 
 
-def sync_from_myfxbook() -> dict[str, Any]:
+def _myfxbook_creds(
+    cfg: dict,
+    *,
+    email: str | None = None,
+    password: str | None = None,
+    account_id: int | str | None = None,
+) -> tuple[str, str, int | str]:
+    resolved_email = (email if email is not None else cfg.get("myfxbook_email", "")).strip()
+    resolved_password = password if password is not None else cfg.get("myfxbook_password", "")
+    resolved_account = account_id if account_id is not None else (cfg.get("myfxbook_account_id") or 0)
+    return resolved_email, resolved_password, resolved_account
+
+
+def sync_from_myfxbook(
+    *,
+    email: str | None = None,
+    password: str | None = None,
+    account_id: int | str | None = None,
+    save_credentials: bool = False,
+) -> dict[str, Any]:
     """Pull trade history from Myfxbook cloud (phone trades, no desktop MT5)."""
     cfg = load_config()
-    email = cfg.get("myfxbook_email", "")
-    password = cfg.get("myfxbook_password", "")
-    account_id = cfg.get("myfxbook_account_id") or 0
+    resolved_email, resolved_password, resolved_account = _myfxbook_creds(
+        cfg, email=email, password=password, account_id=account_id
+    )
+
+    if save_credentials and resolved_email and resolved_password:
+        cfg = save_myfxbook_config(resolved_email, resolved_password, resolved_account)
+
+    email, password, account_id = resolved_email, resolved_password, resolved_account
 
     try:
         payload = fetch_ledger_data(email, password, account_id)
@@ -321,11 +345,16 @@ def sync_from_myfxbook() -> dict[str, Any]:
     }
 
 
-def get_myfxbook_status() -> dict[str, Any]:
+def get_myfxbook_status(
+    *,
+    email: str | None = None,
+    password: str | None = None,
+    account_id: int | str | None = None,
+) -> dict[str, Any]:
     cfg = load_config()
-    email = cfg.get("myfxbook_email", "")
-    password = cfg.get("myfxbook_password", "")
-    account_id = cfg.get("myfxbook_account_id") or 0
+    email, password, account_id = _myfxbook_creds(
+        cfg, email=email, password=password, account_id=account_id
+    )
     if not email or not password:
         from agent.config import CONFIG_PATH
         hint = (

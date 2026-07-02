@@ -28,6 +28,7 @@ from data.fxbook import build_fxbook_stats
 from data.news import fetch_news, news_sentiment_summary
 from data.news_trader import build_news_trading_snapshot, run_news_monitor
 from agent.config import load_config as load_agent_config
+from agent.config import myfxbook_config_public, save_myfxbook_config
 from data.trade_ledger import (
     _sync_ledger_auto,
     get_balance_sheet,
@@ -476,19 +477,53 @@ def api_mt5_sync():
     return jsonify(sync_from_mt5(days=days))
 
 
+def _myfxbook_request_payload() -> dict:
+    data = request.get_json(silent=True) or {}
+    return {
+        "email": (data.get("email") or request.args.get("email") or "").strip() or None,
+        "password": data.get("password") or request.args.get("password") or None,
+        "account_id": data.get("account_id") or request.args.get("account_id"),
+    }
+
+
+@app.route("/api/myfxbook/config")
+def api_myfxbook_config_get():
+    return jsonify(myfxbook_config_public())
+
+
+@app.route("/api/myfxbook/config", methods=["POST"])
+def api_myfxbook_config_save():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    account_id = data.get("account_id") or 0
+    if not email or not password:
+        return jsonify({"ok": False, "error": "email and password are required"}), 400
+    save_myfxbook_config(email, password, account_id)
+    return jsonify({
+        "ok": True,
+        "message": "Myfxbook credentials saved",
+        "config": myfxbook_config_public(),
+    })
+
+
 @app.route("/api/myfxbook/status")
 def api_myfxbook_status():
-    return jsonify(get_myfxbook_status())
+    payload = _myfxbook_request_payload()
+    return jsonify(get_myfxbook_status(**payload))
 
 
-@app.route("/api/myfxbook/accounts")
+@app.route("/api/myfxbook/accounts", methods=["GET", "POST"])
 def api_myfxbook_accounts():
-    return jsonify(get_myfxbook_status())
+    payload = _myfxbook_request_payload()
+    return jsonify(get_myfxbook_status(**payload))
 
 
 @app.route("/api/myfxbook/sync", methods=["POST"])
 def api_myfxbook_sync():
-    return jsonify(sync_from_myfxbook())
+    payload = _myfxbook_request_payload()
+    save_credentials = bool(request.get_json(silent=True))
+    return jsonify(sync_from_myfxbook(**payload, save_credentials=save_credentials))
 
 
 @app.route("/api/balance-sheet")

@@ -41,10 +41,17 @@
         <li>Free account at <a href="https://www.myfxbook.com" target="_blank" rel="noopener">myfxbook.com</a></li>
         <li><strong>Add Account</strong> → MetaTrader 5 → broker <strong>XM</strong> → your account number</li>
         <li>Use your <strong>investor (read-only) password</strong> — not your main trading password</li>
-        <li>In <code>config.json</code>: set <code>myfxbook_email</code>, <code>myfxbook_password</code>, then click <strong>List accounts</strong> below to get <code>myfxbook_account_id</code></li>
+        <li>Enter your <strong>Myfxbook login</strong> below (website email + password — not XM)</li>
       </ol>
+      <div class="bs-mfb-form">
+        <label>Myfxbook email <input type="email" id="mfb-email" placeholder="you@gmail.com" autocomplete="username" /></label>
+        <label>Myfxbook password <input type="password" id="mfb-password" placeholder="Myfxbook site password" autocomplete="current-password" /></label>
+        <label>Account ID <input type="text" id="mfb-account-id" placeholder="12098095" /></label>
+      </div>
       <div class="bs-import-row">
-        <button type="button" class="refresh-btn" id="btn-list-mfb">List Myfxbook accounts</button>
+        <button type="button" class="refresh-btn" id="btn-save-mfb">Save credentials</button>
+        <button type="button" class="refresh-btn secondary" id="btn-list-mfb">List accounts</button>
+        <button type="button" class="refresh-btn" id="btn-sync-mfb-inline">Save &amp; sync</button>
         <span id="mfb-status" class="bs-import-status"></span>
       </div>
       <div id="mfb-accounts" class="bs-table-wrap"></div>
@@ -113,6 +120,6 @@
     <p>Data from XM MetaTrader 5 deal history · profit includes commission &amp; swap</p>
   </footer>
 
-  <script src="/static/js/balance.js?v=3"></script>
+  <script src="/static/js/balance.js?v=4"></script>
 </body>
 </html>
