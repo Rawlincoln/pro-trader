@@ -10,8 +10,8 @@
 <body class="balance-page">
   <header class="header">
     <div class="header-left">
-      <h1>XM / MT5 Balance Sheet</h1>
-      <span class="subtitle">Track every trade · Are you profitable or at a loss?</span>
+      <h1>Balance Sheet</h1>
+      <span class="subtitle">Live P&amp;L from your XM trades</span>
       <nav class="nav-tabs">
         {% for a in assets %}
         <a href="{{ a.route }}" class="nav-tab">{{ a.name }}</a>
@@ -22,65 +22,17 @@
     <div class="header-right">
       <div class="status">
         <span id="mt5-status-dot" class="status-dot offline"></span>
-        <span id="mt5-status-text">Checking MT5…</span>
+        <span id="mt5-status-text">Loading…</span>
       </div>
-      <button type="button" class="refresh-btn" id="btn-sync-mfb">Sync Myfxbook</button>
-      <button type="button" class="refresh-btn secondary" id="btn-sync">Sync MT5</button>
+      <button type="button" class="refresh-btn" id="btn-sync-mfb">Sync</button>
     </div>
   </header>
 
   <main class="dashboard balance-dashboard">
-    <section class="card bs-mobile card-highlight">
-      <h2>📱 Phone-only? Use Myfxbook cloud (no desktop MT5)</h2>
-      <p class="bs-mobile-lead">
-        The MT5 phone app cannot connect to this dashboard directly. The easiest path if you
-        <strong>only trade on your phone</strong> is <strong>Myfxbook</strong> — it links to XM in the cloud
-        and pulls every trade you place on mobile.
-      </p>
-      <ol class="bs-import-steps">
-        <li>Free account at <a href="https://www.myfxbook.com" target="_blank" rel="noopener">myfxbook.com</a></li>
-        <li><strong>Add Account</strong> → MetaTrader 5 → broker <strong>XM</strong> → your account number</li>
-        <li>Use your <strong>investor (read-only) password</strong> — not your main trading password</li>
-        <li>Enter your <strong>Myfxbook login</strong> below (website email + password — not XM)</li>
-      </ol>
-      <div class="bs-mfb-form">
-        <label>Myfxbook email <input type="email" id="mfb-email" placeholder="you@gmail.com" autocomplete="username" /></label>
-        <label>Myfxbook password <input type="password" id="mfb-password" placeholder="Myfxbook site password" autocomplete="current-password" /></label>
-        <label>Account ID <input type="text" id="mfb-account-id" placeholder="12098095" /></label>
-      </div>
-      <div class="bs-import-row">
-        <button type="button" class="refresh-btn" id="btn-save-mfb">Save credentials</button>
-        <button type="button" class="refresh-btn secondary" id="btn-list-mfb">List accounts</button>
-        <button type="button" class="refresh-btn" id="btn-sync-mfb-inline">Save &amp; sync</button>
-        <span id="mfb-status" class="bs-import-status"></span>
-      </div>
-      <div id="mfb-accounts" class="bs-table-wrap"></div>
-      <p class="bs-mobile-tip">Alternative: log into the <strong>same XM account</strong> on desktop MT5 (minimized) and use Sync MT5.</p>
-    </section>
-
-    <section class="card bs-setup" id="bs-setup">
-      <h2>Setup checklist</h2>
-      <ul id="setup-checklist" class="setup-checklist"></ul>
-    </section>
-
-    <section class="card bs-import">
-      <h2>No desktop MT5? Import CSV</h2>
-      <p class="bs-import-lead">Export history from XM member area or MT5 desktop → upload here.</p>
-      <ol class="bs-import-steps">
-        <li>MT5 desktop: History tab → right-click → <strong>Report</strong> → save as CSV</li>
-        <li>Or XM.com → Members → trading history → export</li>
-      </ol>
-      <div class="bs-import-row">
-        <input type="file" id="csv-file" accept=".csv,.txt,.tsv" />
-        <button type="button" class="refresh-btn" id="btn-import-csv">Import CSV</button>
-      </div>
-      <p id="csv-import-status" class="bs-import-status"></p>
-    </section>
-
     <section class="bs-hero card" id="bs-hero">
       <div class="bs-hero-label" id="bs-status-label">—</div>
       <div class="bs-hero-pnl" id="bs-total-pnl">—</div>
-      <div class="bs-hero-sub" id="bs-hero-sub">Sync from MT5 to load your trades</div>
+      <div class="bs-hero-sub" id="bs-hero-sub">Loading your trades…</div>
     </section>
 
     <section class="bs-metrics card">
@@ -117,9 +69,9 @@
   </main>
 
   <footer class="footer">
-    <p>Data from XM MetaTrader 5 deal history · profit includes commission &amp; swap</p>
+    <p>Synced from Myfxbook · includes commission &amp; swap</p>
   </footer>
 
-  <script src="/static/js/balance.js?v=4"></script>
+  <script src="/static/js/balance.js?v=5"></script>
 </body>
 </html>
