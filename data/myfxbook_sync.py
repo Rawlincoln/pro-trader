@@ -11,6 +11,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import unquote
 
 import requests
 
@@ -70,7 +71,7 @@ def _login(email: str, password: str) -> str:
         return _session_cache["session"]
 
     data = _api_call("login", {"email": email, "password": password})
-    session = data.get("session")
+    session = unquote(data.get("session") or "")
     if not session:
         raise MyfxbookError("Login succeeded but no session returned")
     _session_cache.update({"session": session, "email": email, "expires_at": now + SESSION_TTL})
