@@ -1,26 +1,31 @@
 const ASSET = window.ASSET || { id: "eurusd", decimals: 5, chartTickFormat: ".5f", showAgent: true };
-const socket = io({ query: { asset: ASSET.id } });
+const socket = typeof io !== "undefined"
+  ? io({ query: { asset: ASSET.id } })
+  : null;
+window.__proTraderSocket = socket;
 let lastData = null;
 const chartRenderState = {};
 
-socket.on("connect", () => {
-  document.getElementById("connection-status").className = "status-dot online";
-});
+if (socket) {
+  socket.on("connect", () => {
+    document.getElementById("connection-status").className = "status-dot online";
+  });
 
-socket.on("disconnect", () => {
-  document.getElementById("connection-status").className = "status-dot offline";
-});
+  socket.on("disconnect", () => {
+    document.getElementById("connection-status").className = "status-dot offline";
+  });
+}
 
 // Poll fallback for cloud hosting when WebSocket is unavailable
 setInterval(() => {
-  if (socket.connected) return;
+  if (socket?.connected) return;
   fetch(`/api/analysis/${ASSET.id}`)
     .then(r => r.json())
     .then(data => { if (!data.error) renderDashboard(data); })
     .catch(() => {});
 }, 45000);
 
-socket.on("market_update", (data) => {
+socket?.on("market_update", (data) => {
   if (data.asset_id && data.asset_id !== ASSET.id) return;
   if (data.error) {
     document.getElementById("signal-summary").textContent = "Error: " + data.error;
@@ -30,7 +35,7 @@ socket.on("market_update", (data) => {
   renderDashboard(data);
 });
 
-socket.on("news_alert", (alert) => {
+socket?.on("news_alert", (alert) => {
   showNewsAlertPopup(alert);
   if (Notification.permission === "granted") {
     new Notification(`NEWS ${alert.signal}: ${alert.event?.slice(0, 60)}`, {

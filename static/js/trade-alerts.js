@@ -231,13 +231,29 @@ const TradeAlerts = (() => {
 
   async function discoverChat() {
     const btn = $("taDiscover");
-    if (btn) btn.disabled = true;
+    const token = $("taTgToken")?.value.trim();
+    if (!token) {
+      toast("Paste your bot token first, then click Find chat ID");
+      return;
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Looking…";
+    }
+    toast("Searching Telegram for your chat ID…");
     try {
       const res = await fetch("/api/trade-alerts/telegram/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildSaveBody()),
       });
+      if (!res.ok) {
+        throw new Error(
+          res.status === 404
+            ? "Trade alerts API not found — restart the Pro Trader app, then hard-refresh (Ctrl+F5)"
+            : `Server returned ${res.status}`,
+        );
+      }
       const data = await res.json();
       const box = $("taChatPick");
       if (!data.ok || !data.chats?.length) {
@@ -260,10 +276,13 @@ const TradeAlerts = (() => {
         $("taTgChat").value = data.chats[0].chat_id;
       }
       toast(`Found ${data.chats.length} chat(s) — click one, then Save → Test`);
-    } catch {
-      toast("Could not reach Telegram");
+    } catch (err) {
+      toast(err?.message || "Could not reach server — restart the app and hard-refresh (Ctrl+F5)");
     } finally {
-      if (btn) btn.disabled = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Find chat ID";
+      }
     }
   }
 
@@ -316,24 +335,52 @@ const TradeAlerts = (() => {
     socket.on("trade_alert", onTradeAlert);
   }
 
+  let bound = false;
+
   function bind() {
-    $("taSave")?.addEventListener("click", saveConfig);
-    $("taTest")?.addEventListener("click", testTelegram);
-    $("taDiscover")?.addEventListener("click", discoverChat);
+    if (bound) return;
+    const panel = $("trade-alerts-panel");
+    if (!panel) return;
+    bound = true;
+
+    panel.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      e.preventDefault();
+      if (btn.id === "taSave") saveConfig();
+      else if (btn.id === "taTest") testTelegram();
+      else if (btn.id === "taDiscover") discoverChat();
+    });
+
     $("taBrowser")?.addEventListener("change", requestNotifyPermission);
     ["taEnabled", "taBuy", "taSell", "taEntry", "taExit", "taEurusd", "taGold", "taBitcoin"].forEach((id) => {
       $(id)?.addEventListener("change", () => saveConfig());
     });
   }
 
+  let started = false;
+
   function init(socket) {
     bind();
-    bindSocket(socket);
-    loadConfig().then(requestNotifyPermission);
-    setInterval(() => {
-      fetch("/api/trade-alerts/status").then((r) => r.json()).then(updateStatus).catch(() => {});
-    }, 60000);
+    if (!started) {
+      started = true;
+      loadConfig().then(requestNotifyPermission);
+      setInterval(() => {
+        fetch("/api/trade-alerts/status").then((r) => r.json()).then(updateStatus).catch(() => {});
+      }, 60000);
+    }
+    bindSocket(socket || window.__proTraderSocket || null);
   }
 
-  return { init, onTradeAlert, requestNotifyPermission };
+  function boot() {
+    init(window.__proTraderSocket || null);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+
+  return { init, onTradeAlert, requestNotifyPermission, discoverChat };
 })();
