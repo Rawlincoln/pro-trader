@@ -30,10 +30,12 @@ from data.news_trader import build_news_trading_snapshot, run_news_monitor
 from data.trade_alerts import (
     detect_price_alerts,
     detect_trade_alerts,
+    discover_telegram_chats,
     dispatch_alerts,
     get_alert_history,
     get_alerts_status,
     load_config as load_alert_config,
+    merge_test_config,
     save_config as save_alert_config,
     test_telegram as test_alert_telegram,
     _safe_config as safe_alert_config,
@@ -416,7 +418,16 @@ def api_trade_alerts_config():
 
 @app.route("/api/trade-alerts/test", methods=["POST"])
 def api_trade_alerts_test():
-    return jsonify(test_alert_telegram())
+    body = request.get_json(silent=True) or {}
+    return jsonify(test_alert_telegram(merge_test_config(body)))
+
+
+@app.route("/api/trade-alerts/telegram/discover", methods=["POST"])
+def api_trade_alerts_discover():
+    body = request.get_json(silent=True) or {}
+    cfg = merge_test_config(body)
+    token = body.get("telegram_bot_token") or cfg.get("telegram_bot_token", "")
+    return jsonify(discover_telegram_chats(token))
 
 
 @app.route("/")

@@ -678,6 +678,28 @@ body.chart-fs-open { overflow: hidden; }
   font-size: 0.82rem;
 }
 .ta-btn.primary { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
+.ta-steps { font-size: 0.78rem; color: var(--muted); margin: 0.5rem 0 0.65rem 1.1rem; line-height: 1.5; }
+.ta-steps a { color: #c4b5fd; }
+.ta-chat-pick { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+.ta-chat-btn {
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid #8b5cf6;
+  background: rgba(139,92,246,0.12);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.ta-chat-btn:hover { background: rgba(139,92,246,0.25); }
+.ta-warn {
+  font-size: 0.78rem;
+  color: #fbbf24;
+  margin: 0.35rem 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.35);
+}
 .ta-hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; }
 .ta-hint code { font-size: 0.7rem; background: var(--bg); padding: 1px 4px; border-radius: 3px; }
 

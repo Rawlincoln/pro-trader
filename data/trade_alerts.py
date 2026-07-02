@@ -112,10 +112,17 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
             lock = skip_locked.get(key)
             if lock and env_locked.get(lock):
                 continue
+            if key in ("telegram_bot_token", "telegram_chat_id") and not str(val).strip():
+                continue
             if key == "symbols" and isinstance(val, dict):
                 cfg["symbols"] = {**(cfg.get("symbols") or DEFAULT_CONFIG["symbols"]), **val}
             else:
                 cfg[key] = val
+
+        token = (cfg.get("telegram_bot_token") or current.get("telegram_bot_token") or "").strip()
+        chat = str(cfg.get("telegram_chat_id") or current.get("telegram_chat_id") or "").strip()
+        if token and chat and updates.get("telegram_enabled") is not False:
+            cfg["telegram_enabled"] = True
 
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
@@ -127,6 +134,8 @@ def _safe_config(cfg: dict[str, Any]) -> dict[str, Any]:
     safe["telegram_token_set"] = bool(cfg.get("telegram_bot_token"))
     safe["telegram_chat_id"] = str(cfg.get("telegram_chat_id") or "")
     safe["telegram_configured"] = cfg.get("telegram_configured", False)
+    safe["needs_chat_id"] = bool(cfg.get("telegram_bot_token") and not cfg.get("telegram_chat_id"))
+    safe["needs_token"] = not bool(cfg.get("telegram_bot_token"))
     safe["server_push_ready"] = cfg.get("server_push_ready", False)
     safe["alerts_permanent"] = cfg.get("alerts_permanent", False)
     safe["env_locked"] = cfg.get("env_locked") or {}
@@ -509,29 +518,125 @@ def _format_telegram(alert: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def send_telegram_alert(alert: dict[str, Any], config: dict[str, Any] | None = None) -> bool:
-    config = config or load_config()
-    if not config.get("telegram_enabled") or not config.get("telegram_configured"):
-        return False
-    token = (config.get("telegram_bot_token") or "").strip()
-    chat_id = str(config.get("telegram_chat_id") or "").strip()
-    if not token or not chat_id:
-        return False
+def _telegram_post(token: str, method: str, payload: dict) -> tuple[bool, str, Optional[dict]]:
     try:
         r = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": _format_telegram(alert), "disable_web_page_preview": True},
+            f"https://api.telegram.org/bot{token}/{method}",
+            json=payload,
             timeout=15,
         )
         data = r.json() if r.content else {}
-        return r.ok and data.get("ok")
+        if r.ok and data.get("ok"):
+            return True, "ok", data.get("result")
+        err = data.get("description") or r.text or f"HTTP {r.status_code}"
+        return False, str(err), None
     except requests.RequestException as exc:
-        logger.warning("Telegram trade alert failed: %s", exc)
-        return False
+        return False, str(exc), None
+
+
+def discover_telegram_chats(token: str) -> dict[str, Any]:
+    """Return chat IDs from recent messages (user must /start the bot first)."""
+    token = (token or "").strip()
+    if not token:
+        return {"ok": False, "error": "Bot token required"}
+
+    ok, err, result = _telegram_post(token, "getUpdates", {"limit": 25, "timeout": 0})
+    if not ok:
+        return {"ok": False, "error": err}
+
+    chats: dict[str, dict] = {}
+    for item in result or []:
+        msg = item.get("message") or item.get("channel_post") or {}
+        chat = msg.get("chat") or {}
+        cid = chat.get("id")
+        if cid is None:
+            continue
+        key = str(cid)
+        chats[key] = {
+            "chat_id": key,
+            "type": chat.get("type", ""),
+            "title": chat.get("title") or chat.get("username") or "",
+            "name": " ".join(
+                x for x in [chat.get("first_name"), chat.get("last_name")] if x
+            ).strip() or chat.get("username", ""),
+            "username": chat.get("username", ""),
+        }
+
+    chat_list = list(chats.values())
+    if not chat_list:
+        return {
+            "ok": False,
+            "error": (
+                "No messages found. Open your bot in Telegram → tap Start → send any message, "
+                "then click Find chat ID again."
+            ),
+            "chats": [],
+        }
+    return {"ok": True, "chats": chat_list}
+
+
+def merge_test_config(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Overlay unsaved form values onto stored config for test/discover."""
+    cfg = load_config()
+    body = body or {}
+    for key in ("telegram_bot_token", "telegram_chat_id", "telegram_enabled"):
+        if key in body and body[key] is not None:
+            if key == "telegram_enabled":
+                cfg[key] = bool(body[key])
+            elif str(body[key]).strip():
+                cfg[key] = str(body[key]).strip()
+    token = (cfg.get("telegram_bot_token") or "").strip()
+    chat = str(cfg.get("telegram_chat_id") or "").strip()
+    cfg["telegram_configured"] = bool(token and chat)
+    if body.get("telegram_enabled") is not False and token and chat:
+        cfg["telegram_enabled"] = True
+    return cfg
+
+
+def _telegram_precheck(config: dict[str, Any]) -> tuple[bool, str]:
+    if not config.get("telegram_enabled"):
+        return False, "Telegram not enabled — check the box and click Save"
+    token = (config.get("telegram_bot_token") or "").strip()
+    chat_id = str(config.get("telegram_chat_id") or "").strip()
+    if not token:
+        return False, "Bot token missing — get one from @BotFather on Telegram"
+    if not chat_id:
+        return False, (
+            "Chat ID missing — open your bot in Telegram, tap Start, send a message, "
+            "then click Find chat ID"
+        )
+    return True, ""
+
+
+def send_telegram_message(
+    text: str,
+    config: Optional[dict[str, Any]] = None,
+) -> tuple[bool, str]:
+    config = config or load_config()
+    ok, err = _telegram_precheck(config)
+    if not ok:
+        return False, err
+    token = (config.get("telegram_bot_token") or "").strip()
+    chat_id = str(config.get("telegram_chat_id") or "").strip()
+    ok, err, _ = _telegram_post(token, "sendMessage", {
+        "chat_id": chat_id,
+        "text": text[:4000],
+        "disable_web_page_preview": True,
+    })
+    if not ok:
+        logger.warning("Telegram send failed: %s", err)
+    return ok, err if not ok else "sent"
+
+
+def send_telegram_alert(alert: dict[str, Any], config: dict[str, Any] | None = None) -> bool:
+    ok, _ = send_telegram_message(_format_telegram(alert), config)
+    return ok
 
 
 def dispatch_alerts(alerts: list[dict[str, Any]], config: dict[str, Any] | None = None) -> int:
     config = config or load_config()
+    if not config.get("telegram_enabled") or not config.get("telegram_configured"):
+        return 0
     sent = 0
     for alert in alerts:
         if send_telegram_alert(alert, config):
@@ -541,18 +646,27 @@ def dispatch_alerts(alerts: list[dict[str, Any]], config: dict[str, Any] | None 
 
 def test_telegram(config: dict[str, Any] | None = None) -> dict[str, Any]:
     config = config or load_config()
-    sample = _build_alert(
-        "eurusd", "buy", "BUY",
-        "Test alert — Pro Trader trade alerts are working for all symbols.",
-        urgency="normal", confidence=99, price=1.0850,
-        trade_plan={"entry": 1.0850, "stop_loss": 1.0835, "take_profit_1": 1.0870},
+    pre_ok, pre_err = _telegram_precheck(config)
+    if not pre_ok:
+        return {
+            "ok": False,
+            "telegram_configured": config.get("telegram_configured", False),
+            "telegram_enabled": config.get("telegram_enabled", False),
+            "needs_chat_id": bool(config.get("telegram_bot_token") and not config.get("telegram_chat_id")),
+            "error": pre_err,
+        }
+    ok, detail = send_telegram_message(
+        "✅ Pro Trader Telegram alerts are working!\n\n"
+        "You will receive BUY, SELL, ENTRY & EXIT alerts for:\n"
+        "• EUR/USD\n• Gold\n• Bitcoin\n\n"
+        "Alerts run 24/7 on the server — no need to keep the site open.",
+        config,
     )
-    sample["asset_name"] = "EUR/USD (test)"
-    ok = send_telegram_alert(sample, config)
     return {
         "ok": ok,
-        "telegram_configured": config.get("telegram_configured", False),
-        "error": None if ok else "Telegram send failed — check token and chat ID",
+        "telegram_configured": True,
+        "telegram_enabled": config.get("telegram_enabled", False),
+        "error": None if ok else detail,
     }
 
 
@@ -564,6 +678,9 @@ def get_alerts_status(scanner_running: bool = True) -> dict[str, Any]:
         "scanner_running": scanner_running,
         "server_push_ready": cfg.get("server_push_ready", False),
         "telegram_configured": cfg.get("telegram_configured", False),
+        "telegram_enabled": cfg.get("telegram_enabled", False),
+        "needs_chat_id": bool(cfg.get("telegram_bot_token") and not cfg.get("telegram_chat_id")),
+        "needs_token": not bool(cfg.get("telegram_bot_token")),
         "symbols_monitored": symbols_on,
         "alert_types": {
             "buy": cfg.get("alert_buy", True),

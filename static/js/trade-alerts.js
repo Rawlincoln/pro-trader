@@ -154,6 +154,21 @@ const TradeAlerts = (() => {
       if (cfg.telegram_chat_id) $("taTgChat").value = cfg.telegram_chat_id;
     }
     if ($("taPermHint")) $("taPermHint").hidden = !cfg.alerts_permanent;
+    const warn = $("taChatWarn");
+    if (warn) {
+      if (cfg.needs_chat_id) {
+        warn.hidden = false;
+        warn.textContent = "Token saved but chat ID is missing — message your bot in Telegram, then Find chat ID.";
+      } else if (cfg.needs_token) {
+        warn.hidden = false;
+        warn.textContent = "Paste your bot token from @BotFather to enable Telegram alerts.";
+      } else if (cfg.telegram_enabled && !cfg.telegram_configured) {
+        warn.hidden = false;
+        warn.textContent = "Complete token + chat ID, then Save and Test.";
+      } else {
+        warn.hidden = true;
+      }
+    }
   }
 
   function buildSaveBody() {
@@ -214,16 +229,76 @@ const TradeAlerts = (() => {
     }
   }
 
+  async function discoverChat() {
+    const btn = $("taDiscover");
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch("/api/trade-alerts/telegram/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSaveBody()),
+      });
+      const data = await res.json();
+      const box = $("taChatPick");
+      if (!data.ok || !data.chats?.length) {
+        if (box) box.hidden = true;
+        toast(data.error || "Message your bot in Telegram first, then try again");
+        return;
+      }
+      if (box) {
+        box.hidden = false;
+        box.innerHTML = data.chats.map((c) => `
+          <button type="button" class="ta-chat-btn" data-chat="${c.chat_id}">
+            ${c.name || c.title || c.username || "Chat"} · ${c.chat_id}
+          </button>
+        `).join("");
+        box.querySelectorAll(".ta-chat-btn").forEach((b) => {
+          b.onclick = () => { if ($("taTgChat")) $("taTgChat").value = b.dataset.chat; };
+        });
+      }
+      if (data.chats.length === 1 && $("taTgChat")) {
+        $("taTgChat").value = data.chats[0].chat_id;
+      }
+      toast(`Found ${data.chats.length} chat(s) — click one, then Save → Test`);
+    } catch {
+      toast("Could not reach Telegram");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   async function testTelegram() {
     const btn = $("taTest");
     if (btn) btn.disabled = true;
     try {
-      await saveConfig();
-      const res = await fetch("/api/trade-alerts/test", { method: "POST" });
+      if (!$("taTelegram")?.checked) {
+        if ($("taTelegram")) $("taTelegram").checked = true;
+      }
+      const body = buildSaveBody();
+      body.telegram_enabled = true;
+      const saveRes = await fetch("/api/trade-alerts/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const saveData = await saveRes.json();
+      if (saveData.config) applyConfig(saveData.config);
+
+      const res = await fetch("/api/trade-alerts/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const data = await res.json();
-      toast(data.ok ? "Test sent to Telegram!" : (data.error || "Test failed"));
+      if (data.ok) {
+        toast("Test sent — check your Telegram!");
+        const status = await fetch("/api/trade-alerts/status").then((r) => r.json());
+        updateStatus(status);
+      } else {
+        toast(data.error || "Test failed");
+      }
     } catch {
-      toast("Test request failed");
+      toast("Test request failed — is the server running?");
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -244,6 +319,7 @@ const TradeAlerts = (() => {
   function bind() {
     $("taSave")?.addEventListener("click", saveConfig);
     $("taTest")?.addEventListener("click", testTelegram);
+    $("taDiscover")?.addEventListener("click", discoverChat);
     $("taBrowser")?.addEventListener("change", requestNotifyPermission);
     ["taEnabled", "taBuy", "taSell", "taEntry", "taExit", "taEurusd", "taGold", "taBitcoin"].forEach((id) => {
       $(id)?.addEventListener("change", () => saveConfig());
