@@ -933,6 +933,20 @@ body.chart-fs-open { overflow: hidden; }
   color: var(--text);
   font-size: 0.9rem;
 }
+.bs-settings { margin-top: 0.5rem; }
+.bs-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--muted);
+  list-style: none;
+}
+.bs-settings summary::-webkit-details-marker { display: none; }
+.bs-settings[open] summary { margin-bottom: 0.5rem; }
+.bs-settings-note { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.65rem; }
+.bs-import-status.saved { color: var(--buy); }
+.bs-import-status.error { color: var(--sell); }
+.ta-perm-note { font-size: 0.82rem; color: var(--buy); margin: 0.35rem 0 0.5rem; }
 .bs-import-status { font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem; }
 .balance-dashboard { max-width: 1200px; }
 .bs-setup-lead { color: var(--muted); font-size: 0.88rem; margin-bottom: 0.75rem; }

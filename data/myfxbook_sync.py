@@ -57,8 +57,30 @@ def _api_call(endpoint: str, params: dict[str, str]) -> dict[str, Any]:
         raise MyfxbookError("Myfxbook returned invalid JSON") from exc
 
     if data.get("error"):
-        raise MyfxbookError(data.get("message") or "Myfxbook API error")
+        msg = data.get("message") or "Myfxbook API error"
+        if "session" in msg.lower():
+            clear_session()
+        raise MyfxbookError(msg)
     return data
+
+
+def _api_call_session(
+    endpoint: str,
+    email: str,
+    password: str,
+    extra: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Authenticated API call with one retry after clearing stale session."""
+    for attempt in range(2):
+        session = _login(email, password)
+        try:
+            return _api_call(endpoint, {"session": session, **(extra or {})})
+        except MyfxbookError as exc:
+            if attempt == 0 and "session" in str(exc).lower():
+                clear_session()
+                continue
+            raise
+    raise MyfxbookError("Myfxbook session failed")
 
 
 def _login(email: str, password: str) -> str:
@@ -83,8 +105,7 @@ def clear_session() -> None:
 
 
 def get_accounts(email: str, password: str) -> list[dict[str, Any]]:
-    session = _login(email, password)
-    data = _api_call("get-my-accounts", {"session": session})
+    data = _api_call_session("get-my-accounts", email, password)
     accounts = data.get("accounts") or []
     return [
         {
@@ -198,11 +219,10 @@ def fetch_ledger_data(
     if not account_id:
         raise MyfxbookError("myfxbook_account_id required — run /api/myfxbook/accounts to list IDs")
 
-    session = _login(email, password)
     aid = str(account_id)
 
-    history_data = _api_call("get-history", {"session": session, "id": aid})
-    open_data = _api_call("get-open-trades", {"session": session, "id": aid})
+    history_data = _api_call_session("get-history", email, password, {"id": aid})
+    open_data = _api_call_session("get-open-trades", email, password, {"id": aid})
     accounts = get_accounts(email, password)
 
     account_snapshot: dict[str, Any] = {}

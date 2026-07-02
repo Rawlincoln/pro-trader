@@ -55,23 +55,18 @@
       </div>
       <div class="trade-alerts-telegram" id="taTelegramSection">
         <label class="ta-check"><input type="checkbox" id="taTelegram" /> Telegram (24/7 phone alerts)</label>
-        <ol class="ta-steps">
-          <li><a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> → <code>/newbot</code> → copy token</li>
-          <li>Open your bot in Telegram → tap <strong>Start</strong> → send any message</li>
-          <li>Paste token → <strong>Find chat ID</strong> → Save → Test Telegram</li>
-        </ol>
+        <p class="ta-perm-note" id="taSavedNote" hidden>Credentials saved permanently on this PC</p>
         <div class="ta-tg-row">
-          <input type="password" id="taTgToken" placeholder="Bot token from @BotFather" autocomplete="off" />
+          <input type="password" id="taTgToken" placeholder="Bot token" autocomplete="off" />
           <input type="text" id="taTgChat" placeholder="Chat ID" />
           <button type="button" class="ta-btn" id="taDiscover">Find chat ID</button>
         </div>
         <div id="taChatPick" class="ta-chat-pick" hidden></div>
         <p class="ta-warn" id="taChatWarn" hidden></p>
         <div class="ta-tg-row">
-          <button type="button" class="ta-btn" id="taSave">Save</button>
+          <button type="button" class="ta-btn" id="taSave">Save permanently</button>
           <button type="button" class="ta-btn primary" id="taTest">Test Telegram</button>
         </div>
-        <p class="ta-hint" id="taPermHint" hidden>Set <code>TELEGRAM_BOT_TOKEN</code> + <code>TELEGRAM_CHAT_ID</code> in Render env once — survives redeploys.</p>
       </div>
       <div id="trade-alert-banner" class="trade-alert-banner hidden"></div>
       <div id="trade-alert-feed" class="trade-alert-feed"></div>
@@ -281,7 +276,7 @@
     };
   </script>
   <script src="/static/js/chart-tools.js?v=3"></script>
-  <script src="/static/js/trade-alerts.js?v=3"></script>
+  <script src="/static/js/trade-alerts.js?v=4"></script>
   <script src="/static/js/app.js?v=3"></script>
 </body>
 </html>

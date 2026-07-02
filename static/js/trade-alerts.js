@@ -153,7 +153,8 @@ const TradeAlerts = (() => {
       $("taTgChat").disabled = !!locked.telegram_chat;
       if (cfg.telegram_chat_id) $("taTgChat").value = cfg.telegram_chat_id;
     }
-    if ($("taPermHint")) $("taPermHint").hidden = !cfg.alerts_permanent;
+    const savedNote = $("taSavedNote");
+    if (savedNote) savedNote.hidden = !cfg.saved_permanently;
     const warn = $("taChatWarn");
     if (warn) {
       if (cfg.needs_chat_id) {
@@ -220,7 +221,7 @@ const TradeAlerts = (() => {
       applyConfig(data.config);
       const status = await fetch("/api/trade-alerts/status").then((r) => r.json());
       updateStatus(status);
-      toast("Alert settings saved");
+      toast(data.config?.saved_permanently ? "Saved permanently" : "Alert settings saved");
       if ($("taBrowser")?.checked) await requestNotifyPermission();
     } catch (e) {
       toast(e.message || "Could not save");
@@ -269,7 +270,11 @@ const TradeAlerts = (() => {
           </button>
         `).join("");
         box.querySelectorAll(".ta-chat-btn").forEach((b) => {
-          b.onclick = () => { if ($("taTgChat")) $("taTgChat").value = b.dataset.chat; };
+          b.onclick = async () => {
+            if ($("taTgChat")) $("taTgChat").value = b.dataset.chat;
+            if ($("taTelegram")) $("taTelegram").checked = true;
+            await saveConfig();
+          };
         });
       }
       if (data.chats.length === 1 && $("taTgChat")) {
@@ -353,7 +358,7 @@ const TradeAlerts = (() => {
     });
 
     $("taBrowser")?.addEventListener("change", requestNotifyPermission);
-    ["taEnabled", "taBuy", "taSell", "taEntry", "taExit", "taEurusd", "taGold", "taBitcoin"].forEach((id) => {
+    ["taEnabled", "taTelegram", "taBuy", "taSell", "taEntry", "taExit", "taEurusd", "taGold", "taBitcoin"].forEach((id) => {
       $(id)?.addEventListener("change", () => saveConfig());
     });
   }

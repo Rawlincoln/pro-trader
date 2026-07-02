@@ -91,10 +91,15 @@ def save_myfxbook_config(email: str, password: str, account_id: int | str = 0) -
 def myfxbook_config_public() -> dict:
     """Return saved Myfxbook settings without exposing the password."""
     cfg = load_config()
+    email = (cfg.get("myfxbook_email") or "").strip()
+    has_password = bool(cfg.get("myfxbook_password"))
+    account_id = cfg.get("myfxbook_account_id") or 0
     return {
-        "email": cfg.get("myfxbook_email", ""),
-        "has_password": bool(cfg.get("myfxbook_password")),
-        "account_id": cfg.get("myfxbook_account_id") or 0,
+        "email": email,
+        "has_password": has_password,
+        "account_id": account_id,
+        "configured": bool(email and has_password and account_id),
+        "saved_permanently": CONFIG_PATH.exists() and email and has_password,
         "config_path": str(CONFIG_PATH),
         "config_exists": CONFIG_PATH.exists(),
     }

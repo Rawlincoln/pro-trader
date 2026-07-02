@@ -131,13 +131,18 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
 
 def _safe_config(cfg: dict[str, Any]) -> dict[str, Any]:
     safe = {k: v for k, v in cfg.items() if k not in ("telegram_bot_token", "env_locked")}
-    safe["telegram_token_set"] = bool(cfg.get("telegram_bot_token"))
+    token_set = bool(cfg.get("telegram_bot_token"))
+    chat_set = bool(str(cfg.get("telegram_chat_id") or "").strip())
+    safe["telegram_token_set"] = token_set
     safe["telegram_chat_id"] = str(cfg.get("telegram_chat_id") or "")
     safe["telegram_configured"] = cfg.get("telegram_configured", False)
     safe["needs_chat_id"] = bool(cfg.get("telegram_bot_token") and not cfg.get("telegram_chat_id"))
     safe["needs_token"] = not bool(cfg.get("telegram_bot_token"))
     safe["server_push_ready"] = cfg.get("server_push_ready", False)
-    safe["alerts_permanent"] = cfg.get("alerts_permanent", False)
+    safe["alerts_permanent"] = cfg.get("alerts_permanent", False) or (token_set and chat_set)
+    safe["credentials_saved"] = token_set and chat_set
+    safe["saved_permanently"] = CONFIG_FILE.exists() and token_set and chat_set
+    safe["config_path"] = str(CONFIG_FILE)
     safe["env_locked"] = cfg.get("env_locked") or {}
     return safe
 

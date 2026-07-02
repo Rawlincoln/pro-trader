@@ -1,5 +1,7 @@
 const $ = (id) => document.getElementById(id);
 
+let mfbConfigured = false;
+
 function fmtMoney(v, cur = "USD") {
   if (v == null || Number.isNaN(v)) return "—";
   const n = Number(v);
@@ -127,18 +129,91 @@ function setSyncStatus(connected, msg, syncSource) {
   }
 }
 
+function mfbPayload() {
+  return {
+    email: ($("mfb-email")?.value || "").trim(),
+    password: $("mfb-password")?.value || "",
+    account_id: ($("mfb-account-id")?.value || "").trim(),
+  };
+}
+
+async function loadMfbConfig() {
+  try {
+    const res = await fetch("/api/myfxbook/config");
+    const data = await res.json();
+    mfbConfigured = !!data.configured;
+    if ($("mfb-email") && data.email) $("mfb-email").value = data.email;
+    if ($("mfb-account-id") && data.account_id) $("mfb-account-id").value = String(data.account_id);
+    if ($("mfb-password")) {
+      $("mfb-password").placeholder = data.has_password
+        ? "Saved — leave blank to keep"
+        : "Myfxbook password";
+    }
+    const status = $("mfb-settings-status");
+    if (status && data.saved_permanently) {
+      status.textContent = "Credentials saved permanently";
+      status.className = "bs-import-status saved";
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function saveMfbConfig() {
+  const status = $("mfb-settings-status");
+  const payload = mfbPayload();
+  if (!payload.email) {
+    if (status) status.textContent = "Email required";
+    return false;
+  }
+  const btn = $("btn-save-mfb");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  try {
+    const res = await fetch("/api/myfxbook/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      if (status) {
+        status.textContent = data.error || "Save failed";
+        status.className = "bs-import-status error";
+      }
+      return false;
+    }
+    mfbConfigured = !!data.config?.configured;
+    if ($("mfb-password")) {
+      $("mfb-password").value = "";
+      $("mfb-password").placeholder = "Saved — leave blank to keep";
+    }
+    if (status) {
+      status.textContent = data.message || "Saved permanently";
+      status.className = "bs-import-status saved";
+    }
+    await syncMyfxbook({ silent: true });
+    return true;
+  } catch {
+    if (status) status.textContent = "Save failed";
+    return false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+  }
+}
+
 async function loadBalance() {
   try {
     const res = await fetch("/api/balance-sheet");
     const data = await res.json();
-    setSyncStatus(data.mt5_connected, data.mt5_message, data.sync_source);
+    setSyncStatus(data.mt5_connected || data.sync_source === "myfxbook", data.mt5_message, data.sync_source);
     if (data.balance_sheet) renderBalanceSheet(data);
   } catch {
     setSyncStatus(false, "Could not load — is the app running?");
   }
 }
 
-async function syncMyfxbook() {
+async function syncMyfxbook(opts = {}) {
+  const silent = opts.silent === true;
   const btn = $("btn-sync-mfb");
   if (btn) { btn.disabled = true; btn.textContent = "Syncing…"; }
   try {
@@ -146,17 +221,32 @@ async function syncMyfxbook() {
     const data = await res.json();
     if (!data.ok) {
       setSyncStatus(false, data.error || "Sync failed", "myfxbook");
-      return;
+      const status = $("mfb-settings-status");
+      if (status) {
+        status.textContent = data.error || "Sync failed — check connection settings";
+        status.className = "bs-import-status error";
+      }
+      if (!silent) $("bs-settings")?.setAttribute("open", "");
+      return false;
     }
     setSyncStatus(true, "Synced", "myfxbook");
     renderBalanceSheet({ synced_at: data.synced_at, balance_sheet: data.balance_sheet });
+    return true;
   } catch {
     setSyncStatus(false, "Sync failed", "myfxbook");
+    return false;
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Sync"; }
   }
 }
 
-$("btn-sync-mfb")?.addEventListener("click", syncMyfxbook);
-loadBalance();
+async function init() {
+  await loadMfbConfig();
+  await loadBalance();
+  if (mfbConfigured) await syncMyfxbook({ silent: true });
+}
+
+$("btn-sync-mfb")?.addEventListener("click", () => syncMyfxbook());
+$("btn-save-mfb")?.addEventListener("click", saveMfbConfig);
+init();
 setInterval(loadBalance, 60000);

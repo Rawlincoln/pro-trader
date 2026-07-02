@@ -496,12 +496,19 @@ def api_myfxbook_config_save():
     email = (data.get("email") or "").strip()
     password = data.get("password") or ""
     account_id = data.get("account_id") or 0
-    if not email or not password:
-        return jsonify({"ok": False, "error": "email and password are required"}), 400
-    save_myfxbook_config(email, password, account_id)
+    existing = load_agent_config()
+    if not email:
+        return jsonify({"ok": False, "error": "email is required"}), 400
+    if not password and not existing.get("myfxbook_password"):
+        return jsonify({"ok": False, "error": "password is required on first save"}), 400
+    save_myfxbook_config(
+        email,
+        password or existing.get("myfxbook_password", ""),
+        account_id or existing.get("myfxbook_account_id") or 0,
+    )
     return jsonify({
         "ok": True,
-        "message": "Myfxbook credentials saved",
+        "message": "Saved permanently — syncs automatically",
         "config": myfxbook_config_public(),
     })
 

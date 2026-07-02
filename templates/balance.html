@@ -66,12 +66,26 @@
       <h2>Recent closed trades</h2>
       <div id="bs-recent-trades" class="bs-table-wrap"></div>
     </section>
+
+    <details class="card bs-settings" id="bs-settings">
+      <summary>Myfxbook connection</summary>
+      <p class="bs-settings-note">Saved permanently on this PC — auto-syncs every 5 min. Leave password blank to keep the saved one.</p>
+      <div class="bs-mfb-form">
+        <label>Email <input type="email" id="mfb-email" autocomplete="username" /></label>
+        <label>Password <input type="password" id="mfb-password" placeholder="Leave blank if already saved" autocomplete="current-password" /></label>
+        <label>Account ID <input type="text" id="mfb-account-id" /></label>
+      </div>
+      <div class="bs-import-row">
+        <button type="button" class="refresh-btn" id="btn-save-mfb">Save</button>
+        <span id="mfb-settings-status" class="bs-import-status"></span>
+      </div>
+    </details>
   </main>
 
   <footer class="footer">
     <p>Synced from Myfxbook · includes commission &amp; swap</p>
   </footer>
 
-  <script src="/static/js/balance.js?v=6"></script>
+  <script src="/static/js/balance.js?v=7"></script>
 </body>
 </html>
