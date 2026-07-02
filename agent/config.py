@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
 
@@ -40,14 +41,31 @@ DEFAULT_CONFIG = {
 }
 
 
+def _merge_env_config(cfg: dict) -> dict:
+    """Env vars override config.json — needed on Render where config.json is not deployed."""
+    email = os.environ.get("MYFXBOOK_EMAIL", "").strip()
+    password = os.environ.get("MYFXBOOK_PASSWORD", "").strip()
+    account_id = os.environ.get("MYFXBOOK_ACCOUNT_ID", "").strip()
+    if email:
+        cfg["myfxbook_email"] = email
+    if password:
+        cfg["myfxbook_password"] = password
+    if account_id:
+        try:
+            cfg["myfxbook_account_id"] = int(account_id)
+        except ValueError:
+            pass
+    return cfg
+
+
 def load_config() -> dict:
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, encoding="utf-8") as f:
             user = json.load(f)
         cfg = deepcopy(DEFAULT_CONFIG)
         cfg.update(user)
-        return cfg
-    return deepcopy(DEFAULT_CONFIG)
+        return _merge_env_config(cfg)
+    return _merge_env_config(deepcopy(DEFAULT_CONFIG))
 
 
 def save_config(cfg: dict) -> None:

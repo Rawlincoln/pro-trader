@@ -327,10 +327,17 @@ def get_myfxbook_status() -> dict[str, Any]:
     password = cfg.get("myfxbook_password", "")
     account_id = cfg.get("myfxbook_account_id") or 0
     if not email or not password:
+        from agent.config import CONFIG_PATH
+        hint = (
+            f"Add myfxbook_email and myfxbook_password to {CONFIG_PATH} "
+            "(then restart py app.py), or set MYFXBOOK_EMAIL / MYFXBOOK_PASSWORD env vars"
+        )
         return {
             "configured": False,
             "connected": False,
-            "message": "Add myfxbook_email and myfxbook_password to config.json",
+            "message": hint,
+            "config_path": str(CONFIG_PATH),
+            "config_exists": CONFIG_PATH.exists(),
             "accounts": [],
         }
     result = test_connection(email, password, account_id)
