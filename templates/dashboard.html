@@ -17,6 +17,7 @@
         {% for a in assets %}
         <a href="{{ a.route }}" class="nav-tab{% if a.id == active_asset %} active{% endif %}">{{ a.name }}</a>
         {% endfor %}
+        <a href="/balance" class="nav-tab">Balance Sheet</a>
       </nav>
     </div>
     <div class="header-right">

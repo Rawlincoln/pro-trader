@@ -898,7 +898,50 @@ body.chart-fs-open { overflow: hidden; }
   font-style: italic;
 }
 
+/* Balance sheet page */
+.balance-page .nav-tab.active { border-color: #8b5cf6; background: rgba(139,92,246,0.15); }
+.balance-dashboard { max-width: 1200px; }
+.bs-setup-lead { color: var(--muted); font-size: 0.88rem; margin-bottom: 0.75rem; }
+.setup-checklist { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.setup-checklist li { font-size: 0.85rem; padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); }
+.setup-checklist li.done { border-color: rgba(16,185,129,0.4); }
+.setup-checklist li.todo { border-color: rgba(245,158,11,0.35); }
+.setup-icon { margin-right: 0.5rem; font-weight: 700; }
+.setup-hint { display: block; font-size: 0.75rem; color: var(--muted); margin-left: 1.4rem; margin-top: 0.15rem; }
+
+.bs-hero { text-align: center; padding: 1.5rem; }
+.bs-hero-label { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.12em; margin-bottom: 0.5rem; }
+.bs-hero-label.profit { color: var(--buy); }
+.bs-hero-label.loss { color: var(--sell); }
+.bs-hero-label.flat { color: var(--wait); }
+.bs-hero-pnl { font-size: 2.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.bs-hero-pnl.up { color: var(--buy); }
+.bs-hero-pnl.down { color: var(--sell); }
+.bs-hero-sub { color: var(--muted); font-size: 0.9rem; margin-top: 0.35rem; }
+
+.bs-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
+}
+.bs-metric { padding: 0.65rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); }
+.bs-metric .label { display: block; font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.bs-metric .value { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bs-metric .value.up { color: var(--buy); }
+.bs-metric .value.down { color: var(--sell); }
+
+.bs-chart { min-height: 260px; }
+.bs-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+.bs-table-wrap { overflow-x: auto; }
+.bs-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.bs-table th, .bs-table td { padding: 0.45rem 0.55rem; border-bottom: 1px solid var(--border); text-align: left; }
+.bs-table th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; }
+.bs-table td.up { color: var(--buy); }
+.bs-table td.down { color: var(--sell); }
+.bs-empty { color: var(--muted); font-size: 0.85rem; padding: 0.5rem 0; }
+
 @media (max-width: 1100px) {
+  .bs-two-col { grid-template-columns: 1fr; }
   .charts-row, .analysis-row, .bottom-row, .news-sections { grid-template-columns: 1fr; }
   .trade-grid { grid-template-columns: repeat(3, 1fr); }
   .score-grid, .news-trading-grid { grid-template-columns: repeat(3, 1fr); }

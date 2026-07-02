@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Balance Sheet — Pro Trader</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body class="balance-page">
+  <header class="header">
+    <div class="header-left">
+      <h1>XM / MT5 Balance Sheet</h1>
+      <span class="subtitle">Track every trade · Are you profitable or at a loss?</span>
+      <nav class="nav-tabs">
+        {% for a in assets %}
+        <a href="{{ a.route }}" class="nav-tab">{{ a.name }}</a>
+        {% endfor %}
+        <a href="/balance" class="nav-tab active">Balance Sheet</a>
+      </nav>
+    </div>
+    <div class="header-right">
+      <div class="status">
+        <span id="mt5-status-dot" class="status-dot offline"></span>
+        <span id="mt5-status-text">Checking MT5…</span>
+      </div>
+      <button type="button" class="refresh-btn" id="btn-sync">Sync from MT5</button>
+    </div>
+  </header>
+
+  <main class="dashboard balance-dashboard">
+    <section class="card bs-setup" id="bs-setup">
+      <h2>What you need (one-time)</h2>
+      <p class="bs-setup-lead">Trade tracking runs on your <strong>Windows PC</strong> with XM MT5 open — not on Render/cloud.</p>
+      <ul id="setup-checklist" class="setup-checklist"></ul>
+    </section>
+
+    <section class="bs-hero card" id="bs-hero">
+      <div class="bs-hero-label" id="bs-status-label">—</div>
+      <div class="bs-hero-pnl" id="bs-total-pnl">—</div>
+      <div class="bs-hero-sub" id="bs-hero-sub">Sync from MT5 to load your trades</div>
+    </section>
+
+    <section class="bs-metrics card">
+      <div class="bs-metric"><span class="label">Balance</span><span class="value" id="bs-balance">—</span></div>
+      <div class="bs-metric"><span class="label">Equity</span><span class="value" id="bs-equity">—</span></div>
+      <div class="bs-metric"><span class="label">Closed P&amp;L</span><span class="value" id="bs-closed-pnl">—</span></div>
+      <div class="bs-metric"><span class="label">Open floating</span><span class="value" id="bs-open-pnl">—</span></div>
+      <div class="bs-metric"><span class="label">Win rate</span><span class="value" id="bs-win-rate">—</span></div>
+      <div class="bs-metric"><span class="label">Wins / Losses</span><span class="value" id="bs-wl">—</span></div>
+      <div class="bs-metric"><span class="label">Closed trades</span><span class="value" id="bs-trade-count">—</span></div>
+      <div class="bs-metric"><span class="label">Last sync</span><span class="value" id="bs-synced">—</span></div>
+    </section>
+
+    <section class="card">
+      <h2>Cumulative P&amp;L (last 60 days)</h2>
+      <div id="bs-chart" class="bs-chart"></div>
+    </section>
+
+    <section class="bs-two-col">
+      <div class="card">
+        <h2>By symbol</h2>
+        <div id="bs-by-symbol" class="bs-table-wrap"></div>
+      </div>
+      <div class="card">
+        <h2>Open positions</h2>
+        <div id="bs-open-positions" class="bs-table-wrap"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Recent closed trades</h2>
+      <div id="bs-recent-trades" class="bs-table-wrap"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Data from XM MetaTrader 5 deal history · profit includes commission &amp; swap</p>
+  </footer>
+
+  <script src="/static/js/balance.js?v=1"></script>
+</body>
+</html>

@@ -27,6 +27,7 @@ from data.fetcher import fetch_live_quote, fetch_ohlc_bundle, ohlc_to_chart
 from data.fxbook import build_fxbook_stats
 from data.news import fetch_news, news_sentiment_summary
 from data.news_trader import build_news_trading_snapshot, run_news_monitor
+from data.trade_ledger import get_balance_sheet, get_mt5_status, sync_from_mt5
 from data.trade_alerts import (
     detect_price_alerts,
     detect_trade_alerts,
@@ -443,6 +444,30 @@ def gold():
 @app.route("/bitcoin")
 def bitcoin():
     return _render_dashboard("bitcoin")
+
+
+@app.route("/balance")
+def balance_page():
+    return render_template(
+        "balance.html",
+        assets=list_assets(),
+    )
+
+
+@app.route("/api/mt5/status")
+def api_mt5_status():
+    return jsonify(get_mt5_status())
+
+
+@app.route("/api/mt5/sync", methods=["POST"])
+def api_mt5_sync():
+    days = int(request.args.get("days", 365))
+    return jsonify(sync_from_mt5(days=days))
+
+
+@app.route("/api/balance-sheet")
+def api_balance_sheet():
+    return jsonify(get_balance_sheet())
 
 
 @app.route("/api/analysis")

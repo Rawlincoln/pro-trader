@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -142,6 +142,72 @@ class MT5Client:
             "is_demo": info.trade_mode == mt5.ACCOUNT_TRADE_MODE_DEMO,
             "server": info.server,
         }
+
+    def get_positions_all(self) -> list[dict]:
+        """All open positions on the account (every symbol)."""
+        if not mt5 or not self.connected:
+            return []
+        positions = mt5.positions_get() or []
+        result = []
+        for p in positions:
+            result.append({
+                "ticket": p.ticket,
+                "symbol": p.symbol,
+                "type": "BUY" if p.type == mt5.POSITION_TYPE_BUY else "SELL",
+                "volume": p.volume,
+                "price_open": p.price_open,
+                "price_current": p.price_current,
+                "sl": p.sl,
+                "tp": p.tp,
+                "profit": round(p.profit, 2),
+                "swap": round(p.swap, 2),
+                "commission": round(p.commission, 2),
+                "comment": p.comment,
+                "magic": p.magic,
+                "time": datetime.fromtimestamp(p.time, tz=timezone.utc).isoformat(),
+            })
+        return result
+
+    def get_deals_history(self, days: int = 365) -> list[dict]:
+        """Closed deals / trade history for balance sheet."""
+        if not mt5 or not self.connected:
+            return []
+        now = datetime.now(timezone.utc)
+        start = now - timedelta(days=max(1, days))
+        deals = mt5.history_deals_get(start, now) or []
+        result = []
+        for d in deals:
+            if d.type not in (mt5.DEAL_TYPE_BUY, mt5.DEAL_TYPE_SELL):
+                continue
+            entry = "IN"
+            if d.entry == mt5.DEAL_ENTRY_OUT:
+                entry = "OUT"
+            elif d.entry == mt5.DEAL_ENTRY_INOUT:
+                entry = "INOUT"
+            deal_type = "BUY"
+            if d.type == mt5.DEAL_TYPE_SELL:
+                deal_type = "SELL"
+            elif d.type == mt5.DEAL_TYPE_BALANCE:
+                deal_type = "BALANCE"
+            result.append({
+                "ticket": d.ticket,
+                "order": d.order,
+                "position_id": d.position_id,
+                "time": datetime.fromtimestamp(d.time, tz=timezone.utc).isoformat(),
+                "type": deal_type,
+                "entry": entry,
+                "symbol": d.symbol,
+                "volume": d.volume,
+                "price": d.price,
+                "profit": round(d.profit, 2),
+                "commission": round(d.commission, 2),
+                "swap": round(d.swap, 2),
+                "fee": round(getattr(d, "fee", 0) or 0, 2),
+                "comment": d.comment,
+                "magic": d.magic,
+            })
+        result.sort(key=lambda x: x["time"], reverse=True)
+        return result
 
     def get_positions(self, magic: int | None = None) -> list[dict]:
         if not mt5 or not self.connected:

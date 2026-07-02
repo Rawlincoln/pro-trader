@@ -6,6 +6,7 @@ agent_state.json
 news_alerts_state.json
 trade_alerts_state.json
 trade_alerts_config.json
+trade_ledger.json
 config.json
 .venv/
 venv/
