@@ -12,3 +12,19 @@ services:
         value: "3.13.0"
       - key: SECRET_KEY
         generateValue: true
+      - key: TRADE_ALERTS_ENABLED
+        value: "true"
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: TELEGRAM_ENABLED
+        value: "true"
+
+  - type: cron
+    name: pro-trader-keepalive
+    runtime: python
+    plan: free
+    schedule: "*/12 * * * *"
+    buildCommand: "true"
+    startCommand: python -c "import urllib.request; urllib.request.urlopen('https://pro-trader.onrender.com/health', timeout=60).read()"

@@ -612,6 +612,118 @@ body.chart-fs-open { overflow: hidden; }
 }
 .refresh-btn:hover { opacity: 0.9; }
 
+/* Trade alerts — all symbols */
+.trade-alerts-panel { border-left: 4px solid #8b5cf6; }
+.trade-alerts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.trade-alerts-header h2 { margin-bottom: 0.2rem; }
+.trade-alerts-sub { color: var(--muted); font-size: 0.82rem; }
+.trade-alerts-status {
+  font-size: 0.78rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.trade-alerts-status.ready { border-color: var(--buy); color: var(--buy); background: rgba(16,185,129,0.1); }
+.trade-alerts-status.on { border-color: #8b5cf6; color: #c4b5fd; background: rgba(139,92,246,0.1); }
+.trade-alerts-status.off { color: var(--muted); }
+
+.trade-alerts-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.82rem;
+}
+.ta-check { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; color: var(--muted); }
+.ta-check input { accent-color: #8b5cf6; }
+
+.trade-alerts-telegram {
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+  margin-bottom: 0.75rem;
+}
+.ta-tg-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.ta-tg-row input {
+  flex: 1;
+  min-width: 120px;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+.ta-btn {
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.ta-btn.primary { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
+.ta-hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; }
+.ta-hint code { font-size: 0.7rem; background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+
+.trade-alert-banner {
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(139,92,246,0.15);
+  border: 1px solid #8b5cf6;
+  font-size: 0.85rem;
+  margin-bottom: 0.65rem;
+}
+.trade-alert-banner.hidden { display: none; }
+.trade-alert-banner.show { display: block; animation: ta-pulse 0.4s ease; }
+@keyframes ta-pulse { 0% { opacity: 0.5; } 100% { opacity: 1; } }
+
+.trade-alert-feed {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.ta-empty { color: var(--muted); font-size: 0.82rem; padding: 0.5rem 0; }
+
+.trade-alert-item {
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.82rem;
+}
+.trade-alert-item.urgent { border-color: var(--sell); box-shadow: 0 0 0 1px rgba(239,68,68,0.25); }
+.trade-alert-item.buy { border-left: 3px solid var(--buy); }
+.trade-alert-item.sell { border-left: 3px solid var(--sell); }
+.trade-alert-item.exit { border-left: 3px solid #f59e0b; }
+.ta-item-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; flex-wrap: wrap; }
+.ta-type { font-weight: 800; font-size: 0.72rem; letter-spacing: 0.04em; }
+.trade-alert-item.buy .ta-type { color: var(--buy); }
+.trade-alert-item.sell .ta-type { color: var(--sell); }
+.trade-alert-item.exit .ta-type { color: #f59e0b; }
+.ta-asset { color: #c4b5fd; text-decoration: none; font-weight: 600; }
+.ta-asset:hover { text-decoration: underline; }
+.ta-time { color: var(--muted); font-size: 0.72rem; margin-left: auto; }
+.ta-item-msg { color: var(--text); line-height: 1.4; }
+.ta-levels { font-size: 0.72rem; color: var(--muted); margin-top: 0.25rem; }
+
 /* Bitcoin — Attention Liquidity Monitor */
 .attention-panel { border-left: 4px solid #f97316; }
 .attention-header {

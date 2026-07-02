@@ -27,6 +27,17 @@ from data.fetcher import fetch_live_quote, fetch_ohlc_bundle, ohlc_to_chart
 from data.fxbook import build_fxbook_stats
 from data.news import fetch_news, news_sentiment_summary
 from data.news_trader import build_news_trading_snapshot, run_news_monitor
+from data.trade_alerts import (
+    detect_price_alerts,
+    detect_trade_alerts,
+    dispatch_alerts,
+    get_alert_history,
+    get_alerts_status,
+    load_config as load_alert_config,
+    save_config as save_alert_config,
+    test_telegram as test_alert_telegram,
+    _safe_config as safe_alert_config,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,6 +57,7 @@ _cache: dict[str, dict] = {}
 _cache_lock = threading.Lock()
 _refreshing: set[str] = set()
 REFRESH_INTERVAL = 30
+PRICE_WATCH_INTERVAL = 15
 
 
 def _fetch_market_bundle(asset_id: str) -> tuple:
@@ -204,6 +216,25 @@ def _get_cache_entry(asset_id: str) -> dict:
         return _cache.get(asset_id, {"data": None, "updated_at": 0}).copy()
 
 
+def _emit_trade_alerts(alerts: list[dict]) -> None:
+    for alert in alerts:
+        asset_id = alert.get("asset_id", DEFAULT_ASSET)
+        socketio.emit("trade_alert", alert, room=asset_id)
+        socketio.emit("trade_alert", alert, room="all_alerts")
+
+
+def _process_trade_alerts(asset_id: str, data: dict) -> None:
+    if data.get("error"):
+        return
+    try:
+        alerts, _ = detect_trade_alerts(asset_id, data)
+        if alerts:
+            dispatch_alerts(alerts)
+            _emit_trade_alerts(alerts)
+    except Exception as exc:
+        logger.error("Trade alert error for %s: %s", asset_id, exc)
+
+
 def _refresh_asset(asset_id: str, emit: bool = True, force: bool = False) -> dict:
     with _cache_lock:
         if asset_id in _refreshing and not force:
@@ -216,6 +247,7 @@ def _refresh_asset(asset_id: str, emit: bool = True, force: bool = False) -> dic
         _store_analysis(asset_id, data)
         if emit and "error" not in data:
             socketio.emit("market_update", data, room=asset_id)
+            _process_trade_alerts(asset_id, data)
         return data
     finally:
         with _cache_lock:
@@ -268,14 +300,45 @@ def background_news_monitor():
             for alert in alerts:
                 asset_id = alert.get("asset_id", DEFAULT_ASSET)
                 socketio.emit("news_alert", alert, room=asset_id)
-                socketio.emit("news_alert", alert)
+                socketio.emit("news_alert", alert, room="all_alerts")
         except Exception as exc:
             logger.error("News monitor error: %s", exc)
         _bg_sleep(45 if IS_CLOUD else 30)
 
 
+def background_price_watch():
+    """Fast price loop for entry/exit level hits on all symbols."""
+    while True:
+        try:
+            config = load_alert_config()
+            if not config.get("enabled"):
+                _bg_sleep(PRICE_WATCH_INTERVAL)
+                continue
+            for asset_id in ASSETS:
+                if not config.get("symbols", {}).get(asset_id, True):
+                    continue
+                entry = _get_cache_entry(asset_id)
+                cached = entry.get("data")
+                if not cached or cached.get("error"):
+                    continue
+                try:
+                    quote = fetch_live_quote(asset_id)
+                    live_price = float(quote.get("price", 0))
+                    if not live_price:
+                        continue
+                    alerts, _ = detect_price_alerts(asset_id, cached, live_price, config=config)
+                    if alerts:
+                        dispatch_alerts(alerts, config)
+                        _emit_trade_alerts(alerts)
+                except Exception as exc:
+                    logger.debug("Price watch %s: %s", asset_id, exc)
+        except Exception as exc:
+            logger.error("Price watch error: %s", exc)
+        _bg_sleep(PRICE_WATCH_INTERVAL)
+
+
 def prewarm_cache():
-    targets = [DEFAULT_ASSET] if IS_CLOUD else list(ASSETS.keys())
+    targets = list(ASSETS.keys())
     for asset_id in targets:
         try:
             _refresh_asset(asset_id, emit=True)
@@ -301,6 +364,7 @@ def start_background_tasks() -> None:
         _spawn_background(prewarm_cache)
     _spawn_background(background_refresh)
     _spawn_background(background_news_monitor)
+    _spawn_background(background_price_watch)
     logger.info("Background tasks started (cloud=%s)", IS_CLOUD)
 
 
@@ -322,7 +386,37 @@ def _lazy_start_workers():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "service": "pro-trader", "cloud": IS_CLOUD})
+    status = get_alerts_status(scanner_running=_bg_started)
+    return jsonify({
+        "status": "ok",
+        "service": "pro-trader",
+        "cloud": IS_CLOUD,
+        "trade_alerts": status,
+    })
+
+
+@app.route("/api/trade-alerts/status")
+def api_trade_alerts_status():
+    return jsonify(get_alerts_status(scanner_running=_bg_started))
+
+
+@app.route("/api/trade-alerts/history")
+def api_trade_alerts_history():
+    return jsonify({"alerts": get_alert_history(50)})
+
+
+@app.route("/api/trade-alerts/config", methods=["GET", "POST"])
+def api_trade_alerts_config():
+    if request.method == "GET":
+        return jsonify(safe_alert_config(load_alert_config()))
+    body = request.get_json(silent=True) or {}
+    cfg = save_alert_config(body)
+    return jsonify({"ok": True, "config": safe_alert_config(cfg)})
+
+
+@app.route("/api/trade-alerts/test", methods=["POST"])
+def api_trade_alerts_test():
+    return jsonify(test_alert_telegram())
 
 
 @app.route("/")
@@ -385,6 +479,7 @@ def on_connect():
     if asset_id not in ASSETS:
         asset_id = DEFAULT_ASSET
     join_room(asset_id)
+    join_room("all_alerts")
 
     entry = _get_cache_entry(asset_id)
     if entry["data"]:

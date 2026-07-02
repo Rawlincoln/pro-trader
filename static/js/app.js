@@ -31,7 +31,6 @@ socket.on("market_update", (data) => {
 });
 
 socket.on("news_alert", (alert) => {
-  if (alert.asset_id && alert.asset_id !== ASSET.id) return;
   showNewsAlertPopup(alert);
   if (Notification.permission === "granted") {
     new Notification(`NEWS ${alert.signal}: ${alert.event?.slice(0, 60)}`, {
@@ -811,3 +810,7 @@ fetchAgent();
 setInterval(fetchAgent, 15000);
 
 ChartTools.init(rerenderChartBySource);
+
+if (typeof TradeAlerts !== "undefined") {
+  TradeAlerts.init(socket);
+}
