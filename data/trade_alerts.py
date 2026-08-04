@@ -179,9 +179,19 @@ def _asset_state(state: dict, asset_id: str) -> dict[str, Any]:
     return assets[asset_id]
 
 
-def _session_key(signal: str, trade_plan: dict) -> str:
-    entry = trade_plan.get("entry")
-    sl = trade_plan.get("stop_loss")
+def _session_key(signal: str, trade_plan: dict, decimals: int = 5) -> str:
+    """Stable session id — round levels so tiny recalcs don't re-fire ENTRY spam."""
+
+    def _level(value) -> str:
+        if value is None:
+            return ""
+        try:
+            return f"{float(value):.{max(0, int(decimals))}f}"
+        except (TypeError, ValueError):
+            return str(value)
+
+    entry = _level(trade_plan.get("entry"))
+    sl = _level(trade_plan.get("stop_loss"))
     raw = f"{signal}|{entry}|{sl}"
     return hashlib.md5(raw.encode()).hexdigest()[:10]
 
@@ -303,7 +313,7 @@ def detect_trade_alerts(
 
     ast = _asset_state(state, asset_id)
     alerts: list[dict[str, Any]] = []
-    session = _session_key(signal, trade_plan)
+    session = _session_key(signal, trade_plan, decimals)
 
     min_sig = float(config.get("min_confidence_signal", 58))
     min_entry = float(config.get("min_confidence_entry", 55))
@@ -345,11 +355,16 @@ def detect_trade_alerts(
         and trade_plan.get("entry") is not None
     ):
         entry = float(trade_plan["entry"])
-        at_entry = _price_near_entry(price, entry, tolerance) or trade_plan.get("position_status", "").startswith("ENTER")
-        entry_key = f"entry:{session}"
+        at_entry = _price_near_entry(price, entry, tolerance) or trade_plan.get(
+            "position_status", ""
+        ).startswith("ENTER")
+        # One ENTRY per signal direction until WAIT / flip (plus stable session id)
+        direction_aid = _alert_id(asset_id, "entry", signal)
         if at_entry and ast.get("session_key") != session:
             aid = _alert_id(asset_id, "entry", session)
-            if not _already_fired(state, aid, 7200):
+            if not _already_fired(state, direction_aid, 14400) and not _already_fired(
+                state, aid, 7200
+            ):
                 alert = _build_alert(
                     asset_id, "entry", signal,
                     (
@@ -362,6 +377,7 @@ def detect_trade_alerts(
                 )
                 alert["id"] = aid
                 alerts.append(alert)
+                _mark_fired(state, direction_aid)
                 ast["session_key"] = session
 
     # Reset session tracking when signal goes WAIT
