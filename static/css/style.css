@@ -966,6 +966,7 @@ body.chart-fs-open { overflow: hidden; }
 .bs-hero-pnl.up { color: var(--buy); }
 .bs-hero-pnl.down { color: var(--sell); }
 .bs-hero-sub { color: var(--muted); font-size: 0.9rem; margin-top: 0.35rem; }
+.bs-hero-meta { color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.9; }
 
 .bs-metrics {
   display: grid;

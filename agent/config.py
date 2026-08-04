@@ -26,7 +26,7 @@ DEFAULT_CONFIG = {
     "magic_number": 20250618,
     "enabled": False,
     "dry_run": True,
-    "min_confidence": 55.0,
+    "min_confidence": 62.0,
     "risk_percent": 1.0,
     "max_lot_size": 1.0,
     "min_lot_size": 0.01,

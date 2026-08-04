@@ -56,9 +56,9 @@ def generate_trade_plan(
 
     if signal == "WAIT":
         plan["instructions"] = [
-            "No high-probability setup - stay flat",
+            "No high-probability setup — stay flat",
             "Wait for 1H and 4H timeframe alignment",
-            "Monitor support/resistance for breakout or rejection",
+            "Prefer setups near support (longs) or resistance (shorts)",
         ]
         if nearest_support:
             plan["instructions"].append(f"Watch support at {_fmt(nearest_support, decimals)} for bounce")
@@ -66,25 +66,46 @@ def generate_trade_plan(
             plan["instructions"].append(f"Watch resistance at {_fmt(nearest_resistance, decimals)} for rejection")
         return plan
 
-    sl_distance = max(atr * 1.5, min_sl)
+    # Tighter risk: 1.2–1.5 ATR SL; R:R targets 1.5 / 2.5 / 3.5
+    sl_distance = max(atr * 1.2, min_sl)
     tp1_distance = sl_distance * 1.5
     tp2_distance = sl_distance * 2.5
-    tp3_distance = sl_distance * 4.0
+    tp3_distance = sl_distance * 3.5
+    high_conf = confidence >= 70
+    near_level = False
 
     if signal == "BUY":
         entry = price
         if nearest_support and price - nearest_support < near_dist:
             entry = nearest_support + buffer
-            plan["entry_trigger"] = f"Enter on bullish rejection above {_fmt(nearest_support, decimals)}"
+            near_level = True
+            plan["entry_trigger"] = (
+                f"Enter on bullish rejection above {_fmt(nearest_support, decimals)}"
+            )
+            position_status = "WAITING_FOR_ENTRY" if price - entry > near_dist * 0.25 else "ENTER_LONG"
+        elif high_conf:
+            plan["entry_trigger"] = (
+                f"High-confidence BUY — market ~{_fmt(price, decimals)} "
+                f"or 1H pullback toward EMA20 / support"
+            )
+            position_status = "ENTER_LONG"
         else:
-            plan["entry_trigger"] = f"Enter NOW at market ~{_fmt(price, decimals)} or on 1H pullback to EMA20"
+            # Mild signal: prefer pullback, not chase
+            entry = (nearest_support + buffer) if nearest_support else price - atr * 0.35
+            plan["entry_trigger"] = (
+                f"Do not chase — wait for pullback toward {_fmt(entry, decimals)} "
+                f"(conf {confidence:.0f}%)"
+            )
+            position_status = "WAITING_FOR_ENTRY"
 
         stop_loss = (nearest_support - buffer) if nearest_support else price - sl_distance
-        stop_loss = min(stop_loss, price - sl_distance)
+        stop_loss = min(stop_loss, entry - sl_distance)
 
-        tp1 = price + tp1_distance
-        tp2 = pivots.get("r1") or (price + tp2_distance)
-        tp3 = pivots.get("r2") or nearest_resistance or (price + tp3_distance)
+        tp1 = entry + tp1_distance
+        tp2 = pivots.get("r1") or (entry + tp2_distance)
+        tp3 = pivots.get("r2") or nearest_resistance or (entry + tp3_distance)
+        if nearest_resistance and float(tp2) > nearest_resistance:
+            tp2 = nearest_resistance - buffer
 
         risk_units = entry - stop_loss
         plan.update({
@@ -93,15 +114,15 @@ def generate_trade_plan(
             "take_profit_1": _round_price(tp1, decimals),
             "take_profit_2": _round_price(float(tp2), decimals),
             "take_profit_3": _round_price(float(tp3), decimals),
-            "position_status": "ENTER_LONG",
+            "position_status": position_status,
             "exit_trigger": f"Exit if price closes below {_fmt(stop_loss, decimals)} on 1H",
             "instructions": [
-                f"BUY {name} at {_fmt(entry, decimals)}",
+                f"BUY {name} at {_fmt(entry, decimals)} ({position_status})",
                 f"Stop Loss: {_fmt(stop_loss, decimals)} (risk: {_fmt(risk_units, decimals)})",
-                f"TP1 (50%): {_fmt(tp1, decimals)} - take partial profit",
-                f"TP2 (30%): {_fmt(float(tp2), decimals)} - trail stop to breakeven",
-                f"TP3 (20%): {_fmt(float(tp3), decimals)} - final target",
-                "Move stop to breakeven after TP1 hit",
+                f"TP1 (50%): {_fmt(tp1, decimals)} — take partial, move SL to BE",
+                f"TP2 (30%): {_fmt(float(tp2), decimals)} — trail stop",
+                f"TP3 (20%): {_fmt(float(tp3), decimals)} — final target",
+                "Skip if spread wide or high-impact news in <30m",
             ],
         })
 
@@ -109,16 +130,33 @@ def generate_trade_plan(
         entry = price
         if nearest_resistance and nearest_resistance - price < near_dist:
             entry = nearest_resistance - buffer
-            plan["entry_trigger"] = f"Enter on bearish rejection below {_fmt(nearest_resistance, decimals)}"
+            near_level = True
+            plan["entry_trigger"] = (
+                f"Enter on bearish rejection below {_fmt(nearest_resistance, decimals)}"
+            )
+            position_status = "WAITING_FOR_ENTRY" if entry - price > near_dist * 0.25 else "ENTER_SHORT"
+        elif high_conf:
+            plan["entry_trigger"] = (
+                f"High-confidence SELL — market ~{_fmt(price, decimals)} "
+                f"or 1H rally toward EMA20 / resistance"
+            )
+            position_status = "ENTER_SHORT"
         else:
-            plan["entry_trigger"] = f"Enter NOW at market ~{_fmt(price, decimals)} or on 1H rally to EMA20"
+            entry = (nearest_resistance - buffer) if nearest_resistance else price + atr * 0.35
+            plan["entry_trigger"] = (
+                f"Do not chase — wait for rally toward {_fmt(entry, decimals)} "
+                f"(conf {confidence:.0f}%)"
+            )
+            position_status = "WAITING_FOR_ENTRY"
 
         stop_loss = (nearest_resistance + buffer) if nearest_resistance else price + sl_distance
-        stop_loss = max(stop_loss, price + sl_distance)
+        stop_loss = max(stop_loss, entry + sl_distance)
 
-        tp1 = price - tp1_distance
-        tp2 = pivots.get("s1") or (price - tp2_distance)
-        tp3 = pivots.get("s2") or nearest_support or (price - tp3_distance)
+        tp1 = entry - tp1_distance
+        tp2 = pivots.get("s1") or (entry - tp2_distance)
+        tp3 = pivots.get("s2") or nearest_support or (entry - tp3_distance)
+        if nearest_support and float(tp2) < nearest_support:
+            tp2 = nearest_support + buffer
 
         risk_units = stop_loss - entry
         plan.update({
@@ -127,15 +165,15 @@ def generate_trade_plan(
             "take_profit_1": _round_price(tp1, decimals),
             "take_profit_2": _round_price(float(tp2), decimals),
             "take_profit_3": _round_price(float(tp3), decimals),
-            "position_status": "ENTER_SHORT",
+            "position_status": position_status,
             "exit_trigger": f"Exit if price closes above {_fmt(stop_loss, decimals)} on 1H",
             "instructions": [
-                f"SELL {name} at {_fmt(entry, decimals)}",
+                f"SELL {name} at {_fmt(entry, decimals)} ({position_status})",
                 f"Stop Loss: {_fmt(stop_loss, decimals)} (risk: {_fmt(risk_units, decimals)})",
-                f"TP1 (50%): {_fmt(tp1, decimals)} - take partial profit",
-                f"TP2 (30%): {_fmt(float(tp2), decimals)} - trail stop to breakeven",
-                f"TP3 (20%): {_fmt(float(tp3), decimals)} - final target",
-                "Move stop to breakeven after TP1 hit",
+                f"TP1 (50%): {_fmt(tp1, decimals)} — take partial, move SL to BE",
+                f"TP2 (30%): {_fmt(float(tp2), decimals)} — trail stop",
+                f"TP3 (20%): {_fmt(float(tp3), decimals)} — final target",
+                "Skip if spread wide or high-impact news in <30m",
             ],
         })
 
@@ -143,7 +181,15 @@ def generate_trade_plan(
         risk = abs(plan["entry"] - plan["stop_loss"])
         reward = abs(plan["take_profit_2"] - plan["entry"])
         plan["risk_reward"] = round(reward / risk, 2) if risk else None
+        # Reject poor R:R setups
+        if plan["risk_reward"] is not None and plan["risk_reward"] < 1.3:
+            plan["position_status"] = "SKIP_POOR_RR"
+            plan["instructions"].insert(
+                0,
+                f"R:R {plan['risk_reward']} < 1.3 — skip or wait for better entry",
+            )
 
+    plan["near_key_level"] = near_level
     return plan
 
 
@@ -154,14 +200,24 @@ def check_exit_conditions(
 ) -> dict[str, Any]:
     action = trade_plan.get("action")
     if action not in ("BUY", "SELL"):
-        return {"should_exit": False, "reason": None}
+        return {"should_exit": False, "reason": None, "urgency": "none"}
+
+    # Only evaluate exits for active / entered style plans
+    status = trade_plan.get("position_status") or ""
+    if status in ("NO_POSITION", "SKIP_POOR_RR", "WAITING_FOR_ENTRY"):
+        return {
+            "should_exit": False,
+            "reason": "No open-style plan — exit checks inactive",
+            "urgency": "none",
+        }
 
     sl = trade_plan.get("stop_loss")
     tp1 = trade_plan.get("take_profit_1")
     tp2 = trade_plan.get("take_profit_2")
     tp3 = trade_plan.get("take_profit_3")
+    entry = trade_plan.get("entry")
 
-    exit_info = {"should_exit": False, "reason": None, "urgency": "none"}
+    exit_info: dict[str, Any] = {"should_exit": False, "reason": None, "urgency": "none"}
 
     if action == "BUY":
         if sl and current_price <= sl:
@@ -169,11 +225,20 @@ def check_exit_conditions(
         elif tp3 and current_price >= tp3:
             exit_info = {"should_exit": True, "reason": "TP3 reached - close remaining", "urgency": "immediate"}
         elif tp2 and current_price >= tp2:
-            exit_info = {"should_exit": False, "reason": "TP2 reached - consider partial exit", "urgency": "consider"}
+            exit_info = {"should_exit": False, "reason": "TP2 reached - trail stop / partial exit", "urgency": "consider"}
         elif tp1 and current_price >= tp1:
-            exit_info = {"should_exit": False, "reason": "TP1 reached - take 50% profit", "urgency": "consider"}
-        elif indicators_1h.get("rsi_signal") == "overbought" and indicators_1h.get("macd_cross") == "bearish_cross":
-            exit_info = {"should_exit": True, "reason": "Bearish reversal signals on 1H", "urgency": "consider"}
+            exit_info = {"should_exit": False, "reason": "TP1 reached - take 50% profit, SL → BE", "urgency": "consider"}
+        elif (
+            entry
+            and current_price > entry
+            and indicators_1h.get("rsi_signal") == "overbought"
+            and indicators_1h.get("macd_cross") == "bearish_cross"
+        ):
+            exit_info = {
+                "should_exit": True,
+                "reason": "In-profit bearish reversal on 1H — protect gains",
+                "urgency": "consider",
+            }
 
     elif action == "SELL":
         if sl and current_price >= sl:
@@ -181,11 +246,20 @@ def check_exit_conditions(
         elif tp3 and current_price <= tp3:
             exit_info = {"should_exit": True, "reason": "TP3 reached - close remaining", "urgency": "immediate"}
         elif tp2 and current_price <= tp2:
-            exit_info = {"should_exit": False, "reason": "TP2 reached - consider partial exit", "urgency": "consider"}
+            exit_info = {"should_exit": False, "reason": "TP2 reached - trail stop / partial exit", "urgency": "consider"}
         elif tp1 and current_price <= tp1:
-            exit_info = {"should_exit": False, "reason": "TP1 reached - take 50% profit", "urgency": "consider"}
-        elif indicators_1h.get("rsi_signal") == "oversold" and indicators_1h.get("macd_cross") == "bullish_cross":
-            exit_info = {"should_exit": True, "reason": "Bullish reversal signals on 1H", "urgency": "consider"}
+            exit_info = {"should_exit": False, "reason": "TP1 reached - take 50% profit, SL → BE", "urgency": "consider"}
+        elif (
+            entry
+            and current_price < entry
+            and indicators_1h.get("rsi_signal") == "oversold"
+            and indicators_1h.get("macd_cross") == "bullish_cross"
+        ):
+            exit_info = {
+                "should_exit": True,
+                "reason": "In-profit bullish reversal on 1H — protect gains",
+                "urgency": "consider",
+            }
 
     return exit_info
 

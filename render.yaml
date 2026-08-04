@@ -20,6 +20,12 @@ services:
         sync: false
       - key: TELEGRAM_ENABLED
         value: "true"
+      - key: MYFXBOOK_EMAIL
+        sync: false
+      - key: MYFXBOOK_PASSWORD
+        sync: false
+      - key: MYFXBOOK_ACCOUNT_ID
+        sync: false
 
   - type: cron
     name: pro-trader-keepalive

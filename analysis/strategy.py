@@ -207,6 +207,7 @@ def _count_confluence(snapshot: dict, patterns: list, levels: dict, bias: str) -
 
 
 def combine_timeframes(analysis_4h: dict, analysis_1h: dict) -> dict[str, Any]:
+    """Stricter multi-TF rules: require 1H+4H alignment for actionable signals."""
     score_4h = analysis_4h["score"]
     score_1h = analysis_1h["score"]
     conf_4h = analysis_4h.get("confluence_count", 0)
@@ -223,36 +224,63 @@ def combine_timeframes(analysis_4h: dict, analysis_1h: dict) -> dict[str, Any]:
         or (bias_4h == "bearish" and bias_1h == "bullish")
     )
 
+    reasons: list[str] = []
+    signal = "WAIT"
+    confidence = 35.0
+
     if conflict:
-        signal = "WAIT"
-        confidence = 25
+        confidence = 22
+        reasons.append("1H and 4H conflict — stay flat")
+    elif not aligned:
+        confidence = 32
+        reasons.append("Timeframes not aligned — wait for 1H to match 4H")
+        # Only exceptional single-TF impulse with strong confluence
+        if combined_score >= 8 and combined_confluence >= 6 and bias_4h == "bullish":
+            signal = "BUY"
+            confidence = min(72, 52 + combined_score)
+            reasons.append("Strong 4H impulse without full alignment (reduced confidence)")
+        elif combined_score <= -8 and combined_confluence >= 6 and bias_4h == "bearish":
+            signal = "SELL"
+            confidence = min(72, 52 + abs(combined_score))
+            reasons.append("Strong 4H impulse without full alignment (reduced confidence)")
+    elif aligned and combined_score >= 6 and combined_confluence >= 5:
+        signal = "BUY"
+        confidence = min(97, 70 + combined_score * 1.5 + combined_confluence * 1.5)
+        reasons.append("Strong aligned bullish setup")
+    elif aligned and combined_score <= -6 and combined_confluence >= 5:
+        signal = "SELL"
+        confidence = min(97, 70 + abs(combined_score) * 1.5 + combined_confluence * 1.5)
+        reasons.append("Strong aligned bearish setup")
     elif aligned and combined_score >= 5 and combined_confluence >= 4:
         signal = "BUY"
-        confidence = min(97, 65 + combined_score * 2 + combined_confluence * 2)
+        confidence = min(88, 62 + combined_score * 2)
+        reasons.append("Aligned bullish — solid confluence")
     elif aligned and combined_score <= -5 and combined_confluence >= 4:
         signal = "SELL"
-        confidence = min(97, 65 + abs(combined_score) * 2 + combined_confluence * 2)
-    elif aligned and combined_score >= 4:
-        signal = "BUY"
-        confidence = min(90, 58 + combined_score * 2.5)
-    elif aligned and combined_score <= -4:
-        signal = "SELL"
-        confidence = min(90, 58 + abs(combined_score) * 2.5)
-    elif combined_score >= 4 and combined_confluence >= 3:
-        signal = "BUY"
-        confidence = 55 + combined_score * 2 + combined_confluence
-    elif combined_score <= -4 and combined_confluence >= 3:
-        signal = "SELL"
-        confidence = 55 + abs(combined_score) * 2 + combined_confluence
-    elif combined_score >= 3:
-        signal = "BUY"
-        confidence = 48 + combined_score * 2
-    elif combined_score <= -3:
-        signal = "SELL"
-        confidence = 48 + abs(combined_score) * 2
+        confidence = min(88, 62 + abs(combined_score) * 2)
+        reasons.append("Aligned bearish — solid confluence")
+    elif aligned and abs(combined_score) >= 4:
+        # Mild alignment: signal only if confluence supports, lower confidence
+        if combined_score >= 4 and combined_confluence >= 4:
+            signal = "BUY"
+            confidence = min(75, 55 + combined_score * 2)
+            reasons.append("Mild aligned bullish — use tighter risk")
+        elif combined_score <= -4 and combined_confluence >= 4:
+            signal = "SELL"
+            confidence = min(75, 55 + abs(combined_score) * 2)
+            reasons.append("Mild aligned bearish — use tighter risk")
+        else:
+            reasons.append("Aligned but weak confluence — wait for confirmation")
+            confidence = 40
     else:
-        signal = "WAIT"
+        reasons.append("Score below threshold — no high-probability setup")
         confidence = 35
+
+    # Floor: never issue BUY/SELL below 58 technical confidence
+    if signal in ("BUY", "SELL") and confidence < 58:
+        reasons.append(f"Confidence {confidence:.0f}% too low — forced WAIT")
+        signal = "WAIT"
+        confidence = max(30, confidence - 5)
 
     return {
         "combined_score": combined_score,
@@ -263,6 +291,7 @@ def combine_timeframes(analysis_4h: dict, analysis_1h: dict) -> dict[str, Any]:
         "timeframes_conflict": conflict,
         "primary_trend": analysis_4h["trend"],
         "entry_timeframe": analysis_1h["bias"],
+        "signal_reasons": reasons,
     }
 
 
@@ -272,38 +301,54 @@ def apply_fundamental_adjustment(
     calendar_risk: dict,
     asset: dict | None = None,
 ) -> dict:
+    """Adjust confidence/notes; do not invent weak directional signals from news alone."""
     adj_score = technical["combined_score"]
-    notes: list[str] = []
+    notes: list[str] = list(technical.get("signal_reasons") or [])
     asset_name = asset.get("name", "market") if asset else "market"
 
     news_score = news_sentiment.get("score", 0)
     if news_score >= 2:
-        adj_score += 1.5
+        adj_score += 1.0
         notes.append(f"News sentiment is bullish for {asset_name}")
     elif news_score <= -2:
-        adj_score -= 1.5
+        adj_score -= 1.0
         notes.append(f"News sentiment is bearish for {asset_name}")
 
-    if calendar_risk.get("risk_level") == "high":
-        notes.append("HIGH IMPACT events ahead - reduce position size or wait")
-        technical = {**technical, "confidence": max(25, technical["confidence"] - 20)}
-
     signal = technical["signal"]
-    conf = technical["confidence"]
+    conf = float(technical["confidence"])
 
-    if adj_score >= 5 and technical.get("confluence", 0) >= 4:
-        signal = "BUY"
-        conf = min(97, conf + 3)
-    elif adj_score <= -5 and technical.get("confluence", 0) >= 4:
-        signal = "SELL"
-        conf = min(97, conf + 3)
-    elif adj_score >= 4:
-        signal = "BUY" if signal != "SELL" else signal
-    elif adj_score <= -4:
-        signal = "SELL" if signal != "BUY" else signal
-    elif abs(adj_score) < 3 or technical.get("confluence", 0) < 2:
+    if calendar_risk.get("risk_level") == "high":
+        notes.append("HIGH IMPACT events ahead — reduce size or wait")
+        conf = max(25, conf - 18)
+        if conf < 62 and signal in ("BUY", "SELL"):
+            notes.append("High-impact calendar — signal demoted to WAIT")
+            signal = "WAIT"
+
+    # News may reinforce or slightly boost an existing technical signal
+    if signal == "BUY" and news_score >= 2 and technical.get("confluence", 0) >= 4:
+        conf = min(97, conf + 4)
+    elif signal == "SELL" and news_score <= -2 and technical.get("confluence", 0) >= 4:
+        conf = min(97, conf + 4)
+    # News alone must not create a trade unless technical was already strong
+    elif signal == "WAIT" and abs(adj_score) >= 7 and technical.get("confluence", 0) >= 5:
+        if adj_score >= 7 and news_score >= 3:
+            signal = "BUY"
+            conf = min(68, 58 + abs(adj_score))
+            notes.append("News + strong score unlocked cautious BUY")
+        elif adj_score <= -7 and news_score <= -3:
+            signal = "SELL"
+            conf = min(68, 58 + abs(adj_score))
+            notes.append("News + strong score unlocked cautious SELL")
+
+    # Final gate: weak confluence → wait
+    if signal in ("BUY", "SELL") and technical.get("confluence", 0) < 3:
+        notes.append("Confluence too low — WAIT")
         signal = "WAIT"
         conf = max(30, conf - 10)
+
+    if signal in ("BUY", "SELL") and conf < 58:
+        notes.append("Final confidence floor — WAIT")
+        signal = "WAIT"
 
     return {
         **technical,

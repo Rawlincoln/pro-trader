@@ -121,10 +121,15 @@ function renderSignal(data) {
   summary += `. Confluence: ${data.confluence ?? "—"}/9. `;
   summary += `4H trend: ${formatTrend(data.primary_trend)}. `;
   if (data.timeframes_aligned) summary += "1H and 4H aligned. ";
+  else summary += "1H/4H not aligned — prefer WAIT. ";
+
+  const plan = data.trade_plan || {};
+  if (plan.position_status) summary += `Plan: ${plan.position_status}. `;
+  if (plan.risk_reward != null) summary += `R:R ${plan.risk_reward}. `;
 
   const vol = data.analysis_1h?.indicators;
   if (vol?.volume_ratio) summary += `Volume ${vol.volume_ratio}x avg. `;
-  if (data.fundamental_notes?.length) summary += data.fundamental_notes.join(" ");
+  if (data.fundamental_notes?.length) summary += data.fundamental_notes.slice(0, 4).join(" · ");
 
   document.getElementById("signal-summary").textContent = summary;
   document.getElementById("combined-score").textContent = data.adjusted_score ?? data.combined_score ?? "—";

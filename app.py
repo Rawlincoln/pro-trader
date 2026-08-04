@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 from analysis.attention_liquidity import blend_attention_into_signal, build_attention_liquidity
 from analysis.indicators import add_all_indicators, indicators_to_series
 from analysis.patterns import pick_primary_pattern
-from analysis.signals import build_full_analysis
+from analysis.signals import build_full_analysis, check_exit_conditions, generate_trade_plan
 from data.assets import ASSETS, DEFAULT_ASSET, get_asset, list_assets
 from data.calendar import calendar_risk_assessment, fetch_calendar
 from data.fetcher import fetch_live_quote, fetch_ohlc_bundle, ohlc_to_chart
@@ -113,16 +113,35 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
         final_signal = tech_signal
         final_conf = tech_conf
         signal_source = "technical"
+        # News may only override when technical is not strongly opposite
         immediate = [a for a in news_trading.get("active_alerts", [])
                      if a.get("urgency") == "immediate" and a.get("signal") in ("BUY", "SELL")]
-        if immediate and immediate[0].get("confidence", 0) >= 65:
+        tech_blocks_news = (
+            tech_signal in ("BUY", "SELL")
+            and news_signal in ("BUY", "SELL")
+            and tech_signal != news_signal
+            and tech_conf >= 65
+        )
+        if (
+            immediate
+            and immediate[0].get("confidence", 0) >= 72
+            and not tech_blocks_news
+        ):
             final_signal = immediate[0]["signal"]
-            final_conf = round((tech_conf * 0.3 + immediate[0]["confidence"] * 0.7), 1)
+            final_conf = round((tech_conf * 0.35 + immediate[0]["confidence"] * 0.65), 1)
             signal_source = "news_release"
-        elif news_conf >= 70 and news_signal in ("BUY", "SELL"):
+        elif (
+            news_conf >= 75
+            and news_signal in ("BUY", "SELL")
+            and not tech_blocks_news
+            and (tech_signal == "WAIT" or tech_signal == news_signal or tech_conf < 60)
+        ):
             final_signal = news_signal
-            final_conf = round((tech_conf * 0.4 + news_conf * 0.6), 1)
+            final_conf = round((tech_conf * 0.45 + news_conf * 0.55), 1)
             signal_source = "news"
+            if final_conf < 58:
+                final_signal = "WAIT"
+                signal_source = "technical"
 
         attention_liquidity = None
         attention_notes: list[str] = []
@@ -138,6 +157,32 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
 
         fundamental_notes = list(full["technical"].get("fundamental_notes", []))
         fundamental_notes.extend(attention_notes)
+
+        # Final risk gate: high-impact calendar demotes late overrides
+        if cal_risk.get("risk_level") == "high" and final_signal in ("BUY", "SELL"):
+            if final_conf < 75:
+                fundamental_notes.append(
+                    "High-impact calendar — final signal demoted to WAIT"
+                )
+                final_signal = "WAIT"
+                final_conf = max(25.0, float(final_conf) - 12)
+                signal_source = "technical"
+
+        # Rebuild plan from final signal (news/attention may have changed it)
+        price = full["analysis_1h"]["indicators"].get("price") or quote.get("price") or 0
+        atr_val = full["analysis_1h"]["indicators"].get("atr")
+        trade_plan = generate_trade_plan(
+            signal=final_signal,
+            price=float(price or 0),
+            atr=atr_val,
+            levels_1h=full["analysis_1h"]["levels"],
+            levels_4h=full["analysis_4h"]["levels"],
+            confidence=float(final_conf or 0),
+            asset_id=asset_id,
+        )
+        exit_check = check_exit_conditions(
+            float(price or 0), trade_plan, full["analysis_1h"]["indicators"]
+        )
 
         return {
             "asset_id": asset_id,
@@ -159,8 +204,8 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "attention_liquidity": attention_liquidity,
             "analysis_1h": _serialize_analysis(full["analysis_1h"], final_signal),
             "analysis_4h": _serialize_analysis(full["analysis_4h"], final_signal),
-            "trade_plan": full["trade_plan"],
-            "exit_check": full["exit_check"],
+            "trade_plan": trade_plan,
+            "exit_check": exit_check,
             "news": news,
             "news_sentiment": news_sent,
             "calendar": calendar,

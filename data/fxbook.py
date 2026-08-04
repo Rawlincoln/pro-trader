@@ -1,4 +1,4 @@
-"""MyFXBook public data: community outlook + forex news."""
+"""MyFXBook data: community outlook (API) + news (RSS fallback when scrape blocked)."""
 
 from __future__ import annotations
 
@@ -18,8 +18,14 @@ from data.news import _score_sentiment
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.myfxbook.com"
+API_ROOT = "https://www.myfxbook.com/api"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ProTrader/1.0",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/json",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 FXBOOK_SYMBOLS = {
@@ -29,7 +35,6 @@ FXBOOK_SYMBOLS = {
 
 _cache: dict[str, dict] = {}
 CACHE_TTL = 600
-NEWS_PAGE_TTL = 300
 
 
 def _get_cached(key: str) -> Any | None:
@@ -41,6 +46,89 @@ def _get_cached(key: str) -> Any | None:
 
 def _set_cache(key: str, data: Any) -> None:
     _cache[key] = {"data": data, "fetched_at": time.time()}
+
+
+def _normalize_symbol_row(row: dict) -> dict[str, Any]:
+    """Normalize API or scrape row into dashboard structure."""
+    sym = (row.get("name") or row.get("symbol") or "").upper()
+    short_pct = float(row.get("shortPercentage") or row.get("short_percentage") or 0)
+    long_pct = float(row.get("longPercentage") or row.get("long_percentage") or 0)
+    short_vol = float(row.get("shortVolume") or row.get("volume_lots_short") or 0)
+    long_vol = float(row.get("longVolume") or row.get("volume_lots_long") or 0)
+    short_pos = int(row.get("shortPositions") or row.get("positions_short") or 0)
+    long_pos = int(row.get("longPositions") or row.get("positions_long") or 0)
+    total_pos = int(row.get("totalPositions") or (short_pos + long_pos))
+
+    crowd_bias = "neutral"
+    if long_pct >= 60:
+        crowd_bias = "bullish"
+    elif short_pct >= 60:
+        crowd_bias = "bearish"
+
+    return {
+        "symbol": sym,
+        "short": {
+            "action": "Short",
+            "percentage": short_pct,
+            "volume_lots": short_vol,
+            "positions": short_pos,
+        },
+        "long": {
+            "action": "Long",
+            "percentage": long_pct,
+            "volume_lots": long_vol,
+            "positions": long_pos,
+        },
+        "short_percentage": short_pct,
+        "long_percentage": long_pct,
+        "crowd_bias": crowd_bias,
+        "popularity_pct": row.get("popularity_pct"),
+        "total_positions": total_pos,
+        "total_volume_lots": round(short_vol + long_vol, 2),
+        "avg_short_price": row.get("avgShortPrice"),
+        "avg_long_price": row.get("avgLongPrice"),
+    }
+
+
+def _fetch_outlook_api() -> dict[str, dict[str, Any]]:
+    """Authenticated Myfxbook community outlook — works when HTML pages return 403."""
+    try:
+        from agent.config import load_config
+        from data.myfxbook_sync import _login, MyfxbookError
+    except Exception as exc:
+        logger.debug("Myfxbook API imports unavailable: %s", exc)
+        return {}
+
+    cfg = load_config()
+    email = (cfg.get("myfxbook_email") or "").strip()
+    password = cfg.get("myfxbook_password") or ""
+    if not email or not password:
+        return {}
+
+    try:
+        session = _login(email, password)
+        resp = requests.post(
+            f"{API_ROOT}/get-community-outlook.json",
+            params={"session": session},
+            timeout=20,
+            headers={"User-Agent": "ProTrader/1.0"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("MyFXBook outlook API failed: %s", exc)
+        return {}
+
+    if data.get("error"):
+        logger.warning("MyFXBook outlook API error: %s", data.get("message"))
+        return {}
+
+    symbols: dict[str, dict[str, Any]] = {}
+    for row in data.get("symbols") or []:
+        norm = _normalize_symbol_row(row)
+        if norm["symbol"]:
+            symbols[norm["symbol"]] = norm
+    return symbols
 
 
 def _parse_pct(value: str) -> float | None:
@@ -60,103 +148,90 @@ def _parse_positions(value: str) -> int | None:
     return int(m.group(1).replace(",", "")) if m else None
 
 
-def _parse_popularity(html: str, symbol: str) -> float | None:
-    m = re.search(
-        rf"(\d+(?:\.\d+)?)% of traders are currently trading {re.escape(symbol)}",
-        html,
-        re.I,
-    )
-    return float(m.group(1)) if m else None
+def _fetch_outlook_scrape() -> dict[str, dict[str, Any]]:
+    """Legacy HTML scrape — often 403 now; kept as last resort."""
+    try:
+        resp = requests.get(f"{BASE_URL}/community/outlook", timeout=8, headers=HEADERS)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+    except Exception as exc:
+        logger.debug("MyFXBook outlook scrape unavailable: %s", exc)
+        return {}
+
+    symbols: dict[str, dict[str, Any]] = {}
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        if len(rows) < 2:
+            continue
+        header = [c.get_text(" ", strip=True) for c in rows[0].find_all(["th", "td"])]
+        if header[:5] != ["Symbol", "Action", "Percentage", "Volume", "Positions"]:
+            continue
+
+        cells = [c.get_text(" ", strip=True) for c in rows[1].find_all("td")]
+        if len(cells) < 5 or not re.fullmatch(r"[A-Z0-9]{6,8}", cells[0]):
+            continue
+
+        short_pct = _parse_pct(cells[2]) or 0
+        long_pct = 0.0
+        long_vol = 0.0
+        long_pos = 0
+        if len(rows) > 2:
+            long_cells = [c.get_text(" ", strip=True) for c in rows[2].find_all("td")]
+            if len(long_cells) >= 4 and long_cells[0].lower() == "long":
+                long_pct = _parse_pct(long_cells[1]) or 0
+                long_vol = _parse_lots(long_cells[2]) or 0
+                long_pos = _parse_positions(long_cells[3]) or 0
+
+        symbols[cells[0]] = _normalize_symbol_row({
+            "name": cells[0],
+            "shortPercentage": short_pct,
+            "longPercentage": long_pct,
+            "shortVolume": _parse_lots(cells[3]) or 0,
+            "longVolume": long_vol,
+            "shortPositions": _parse_positions(cells[4]) or 0,
+            "longPositions": long_pos,
+        })
+    return symbols
 
 
 def fetch_community_outlook(symbol: str | None = None) -> dict[str, Any]:
-    """Scrape MyFXBook community positioning for one or all symbols."""
+    """Community positioning for one or all symbols (API preferred)."""
     cache_key = f"outlook:{symbol or 'all'}"
     cached = _get_cached(cache_key)
     if cached is not None:
         return cached
 
-    result: dict[str, Any] = {"symbols": {}, "updated_at": datetime.now(timezone.utc).isoformat()}
-    try:
-        resp = requests.get(f"{BASE_URL}/community/outlook", timeout=8, headers=HEADERS)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+    symbols = _fetch_outlook_api()
+    source = "api"
+    if not symbols:
+        symbols = _fetch_outlook_scrape()
+        source = "scrape" if symbols else "none"
 
-        for table in soup.find_all("table"):
-            rows = table.find_all("tr")
-            if len(rows) < 2:
-                continue
-            header = [c.get_text(" ", strip=True) for c in rows[0].find_all(["th", "td"])]
-            if header[:5] != ["Symbol", "Action", "Percentage", "Volume", "Positions"]:
-                continue
+    result: dict[str, Any] = {
+        "symbols": symbols,
+        "source": source,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if not symbols:
+        result["error"] = "MyFXBook community outlook unavailable (HTML blocked; login API failed)"
 
-            cells = [c.get_text(" ", strip=True) for c in rows[1].find_all("td")]
-            if len(cells) < 5:
-                continue
-
-            sym = cells[0]
-            if not re.fullmatch(r"[A-Z0-9]{6,8}", sym):
-                continue
-
-            short_row = {
-                "action": cells[1],
-                "percentage": _parse_pct(cells[2]),
-                "volume_lots": _parse_lots(cells[3]),
-                "positions": _parse_positions(cells[4]),
-            }
-            long_row = {"action": "Long", "percentage": None, "volume_lots": None, "positions": None}
-            if len(rows) > 2:
-                long_cells = [c.get_text(" ", strip=True) for c in rows[2].find_all("td")]
-                if len(long_cells) >= 4 and long_cells[0].lower() == "long":
-                    long_row = {
-                        "action": "Long",
-                        "percentage": _parse_pct(long_cells[1]),
-                        "volume_lots": _parse_lots(long_cells[2]),
-                        "positions": _parse_positions(long_cells[3]),
-                    }
-
-            short_pct = short_row["percentage"] or 0
-            long_pct = long_row["percentage"] or 0
-            crowd_bias = "neutral"
-            if long_pct >= 60:
-                crowd_bias = "bullish"
-            elif short_pct >= 60:
-                crowd_bias = "bearish"
-
-            result["symbols"][sym] = {
-                "symbol": sym,
-                "short": short_row,
-                "long": long_row,
-                "short_percentage": short_pct,
-                "long_percentage": long_pct,
-                "crowd_bias": crowd_bias,
-                "popularity_pct": _parse_popularity(resp.text, sym),
-                "total_positions": (short_row["positions"] or 0) + (long_row["positions"] or 0),
-                "total_volume_lots": round(
-                    (short_row["volume_lots"] or 0) + (long_row["volume_lots"] or 0), 2
-                ),
-            }
-
-        if symbol:
-            sym = symbol.upper()
-            result = {
-                "symbol": sym,
-                "available": sym in result["symbols"],
-                "data": result["symbols"].get(sym),
-                "updated_at": result["updated_at"],
-            }
-    except Exception as exc:
-        logger.warning("MyFXBook outlook fetch failed: %s", exc)
-        result["error"] = str(exc)
-        if symbol:
-            result = {"symbol": symbol.upper(), "available": False, "data": None, "error": str(exc)}
+    if symbol:
+        sym = symbol.upper()
+        result = {
+            "symbol": sym,
+            "available": sym in symbols,
+            "data": symbols.get(sym),
+            "source": source,
+            "updated_at": result["updated_at"],
+            "error": result.get("error") if sym not in symbols else None,
+        }
 
     _set_cache(cache_key, result)
     return result
 
 
 def _scrape_all_fxbook_headlines() -> list[dict[str, Any]]:
-    """Scrape MyFXBook news page once; filter per asset later."""
+    """Scrape MyFXBook news page — often 403; returns empty on failure."""
     cached = _get_cached("news:all")
     if cached is not None:
         return cached
@@ -200,14 +275,15 @@ def _scrape_all_fxbook_headlines() -> list[dict[str, Any]]:
                 "sentiment": _score_sentiment(combined),
             })
     except Exception as exc:
-        logger.warning("MyFXBook news fetch failed: %s", exc)
+        # Expected often — HTML endpoints return 403; RSS elsewhere covers news.
+        logger.debug("MyFXBook news scrape skipped: %s", exc)
 
-    _cache["news:all"] = {"data": articles, "fetched_at": time.time()}
+    _set_cache("news:all", articles)
     return articles
 
 
 def fetch_fxbook_news(limit: int = 20, asset_id: str = "eurusd") -> list[dict[str, Any]]:
-    """Filter cached MyFXBook headlines for the active asset."""
+    """Filter cached MyFXBook headlines for the active asset (may be empty if 403)."""
     asset = get_asset(asset_id)
     keywords = asset["news_keywords"]
     articles = [
@@ -234,7 +310,6 @@ def _contrarian_signal(crowd_bias: str, asset_id: str) -> tuple[str, str]:
 
 def build_fxbook_stats(asset_id: str = "eurusd") -> dict[str, Any]:
     """Aggregate MyFXBook stats for dashboard display."""
-    asset = get_asset(asset_id)
     symbol = FXBOOK_SYMBOLS.get(asset_id)
     news = fetch_fxbook_news(15, asset_id)
 
@@ -249,6 +324,7 @@ def build_fxbook_stats(asset_id: str = "eurusd") -> dict[str, Any]:
         "outlook": None,
         "crowd_signal": "WAIT",
         "crowd_reason": "No MyFXBook crowd data for this asset",
+        "outlook_source": None,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -259,6 +335,7 @@ def build_fxbook_stats(asset_id: str = "eurusd") -> dict[str, Any]:
     outlook = fetch_community_outlook(symbol)
     data = outlook.get("data")
     stats["outlook"] = data
+    stats["outlook_source"] = outlook.get("source")
 
     if data:
         crowd = data.get("crowd_bias", "neutral")
@@ -271,5 +348,7 @@ def build_fxbook_stats(asset_id: str = "eurusd") -> dict[str, Any]:
         stats["total_volume_lots"] = data.get("total_volume_lots")
         stats["crowd_signal"] = signal
         stats["crowd_reason"] = reason
+    elif outlook.get("error"):
+        stats["crowd_reason"] = outlook["error"]
 
     return stats

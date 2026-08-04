@@ -57,6 +57,17 @@ function renderBalanceSheet(data) {
     ? new Date(data.synced_at).toLocaleString()
     : "Never";
 
+  const meta = $("bs-account-meta");
+  if (meta) {
+    const parts = [];
+    if (acc.name) parts.push(acc.name);
+    if (acc.login) parts.push(`#${acc.login}`);
+    if (acc.server) parts.push(acc.server);
+    if (data.sync_source) parts.push(`via ${data.sync_source}`);
+    if (data.import_source) parts.push(`ledger: ${data.import_source}`);
+    meta.textContent = parts.length ? parts.join(" · ") : "Account snapshot from last sync";
+  }
+
   renderChart(sheet.daily_pnl || []);
 
   const symRows = (sheet.by_symbol || []).map((r) => `
