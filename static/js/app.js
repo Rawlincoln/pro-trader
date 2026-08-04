@@ -28,7 +28,10 @@ setInterval(() => {
 socket?.on("market_update", (data) => {
   if (data.asset_id && data.asset_id !== ASSET.id) return;
   if (data.error) {
-    document.getElementById("signal-summary").textContent = "Error: " + data.error;
+    const plain = document.getElementById("action-plain");
+    if (plain) plain.textContent = "Error: " + data.error;
+    const sum = document.getElementById("signal-summary");
+    if (sum) sum.textContent = "Error: " + data.error;
     return;
   }
   lastData = data;
@@ -46,17 +49,21 @@ socket?.on("news_alert", (alert) => {
   playAlertSound(alert.urgency === "immediate");
 });
 
-document.getElementById("refresh-btn").addEventListener("click", async () => {
+document.getElementById("refresh-btn")?.addEventListener("click", async () => {
   const btn = document.getElementById("refresh-btn");
-  btn.textContent = "Refreshing...";
-  btn.disabled = true;
+  if (btn) {
+    btn.textContent = "Refreshing…";
+    btn.disabled = true;
+  }
   try {
     const res = await fetch(`/api/refresh/${ASSET.id}`);
     const data = await res.json();
     if (!data.error) renderDashboard(data);
   } finally {
-    btn.textContent = "Refresh Now";
-    btn.disabled = false;
+    if (btn) {
+      btn.textContent = "Refresh analysis";
+      btn.disabled = false;
+    }
   }
 });
 
@@ -77,6 +84,7 @@ function renderDashboard(data) {
   const decimals = data.decimals ?? ASSET.decimals;
   renderQuote(data.quote, decimals);
   renderSignal(data);
+  renderSimpleAction(data, decimals);
   renderNewsTrading(data);
   renderTradePlan(data.trade_plan, data.exit_check, decimals);
   const tickFmt = data.chart_tick_format || ASSET.chartTickFormat;
@@ -96,71 +104,248 @@ function renderDashboard(data) {
   if (ASSET.id === "bitcoin") renderAttentionLiquidity(data.attention_liquidity, data);
 
   const ts = new Date(data.updated_at * 1000).toLocaleTimeString();
-  document.getElementById("last-update").textContent = "Updated " + ts;
+  const lu = document.getElementById("last-update");
+  if (lu) lu.textContent = "Updated " + ts;
+}
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+/** Big plain-language BUY / SELL / WAIT card */
+function renderSimpleAction(data, decimals) {
+  const card = document.getElementById("action-card");
+  if (!card) return;
+
+  const signal = (data.signal || "WAIT").toUpperCase();
+  const conf = Number(data.confidence || 0);
+  const plan = data.trade_plan || {};
+  const status = plan.position_status || "NO_POSITION";
+  const fmt = (v) => fmtPrice(v, decimals);
+  const name = data.asset_name || ASSET.name || "this pair";
+
+  card.className = "action-card " + signal.toLowerCase();
+
+  let verb = "WAIT — DO NOT TRADE";
+  let plain = "No clear setup after checking indicators, news, and levels.";
+  if (signal === "BUY") {
+    if (status === "WAITING_FOR_ENTRY") {
+      verb = "GET READY TO BUY";
+      plain = `Bullish bias on ${name}. Wait for price to reach your entry — do not chase.`;
+    } else if (status === "SKIP_POOR_RR") {
+      verb = "BUY BIAS — SKIP FOR NOW";
+      plain = "Direction is up, but risk/reward is too poor. Wait for a better level.";
+    } else if (status === "ENTER_LONG") {
+      verb = "BUY NOW";
+      plain = `Open a BUY on ${name} using the levels below.`;
+    } else {
+      verb = "BUY SETUP";
+      plain = `Bullish setup on ${name}. Follow the steps.`;
+    }
+  } else if (signal === "SELL") {
+    if (status === "WAITING_FOR_ENTRY") {
+      verb = "GET READY TO SELL";
+      plain = `Bearish bias on ${name}. Wait for price to reach your entry — do not chase.`;
+    } else if (status === "SKIP_POOR_RR") {
+      verb = "SELL BIAS — SKIP FOR NOW";
+      plain = "Direction is down, but risk/reward is too poor. Wait for a better level.";
+    } else if (status === "ENTER_SHORT") {
+      verb = "SELL NOW";
+      plain = `Open a SELL on ${name} using the levels below.`;
+    } else {
+      verb = "SELL SETUP";
+      plain = `Bearish setup on ${name}. Follow the steps.`;
+    }
+  }
+
+  setText("action-verb", verb);
+  setText("action-plain", plain);
+  setText("action-conf-value", conf ? `${conf.toFixed(0)}%` : "—");
+
+  // Numbered instructions
+  const steps = buildActionSteps(signal, plan, data, fmt);
+  const stepsEl = document.getElementById("action-steps");
+  if (stepsEl) {
+    stepsEl.innerHTML = steps.map((s) => `<li>${s}</li>`).join("");
+  }
+
+  // Why (one short paragraph)
+  const whyBits = [];
+  if (data.timeframes_aligned) whyBits.push("1H + 4H aligned");
+  else whyBits.push("1H/4H not aligned");
+  if (data.primary_trend) whyBits.push(`4H trend ${formatTrend(data.primary_trend)}`);
+  if (data.news_sentiment?.overall) whyBits.push(`news ${data.news_sentiment.overall}`);
+  if (data.calendar_risk?.risk_level === "high") whyBits.push("high-impact news ahead");
+  if (data.user_sr?.near_user_support) whyBits.push("at your support");
+  if (data.user_sr?.near_user_resistance) whyBits.push("at your resistance");
+  if (data.signal_source && data.signal_source !== "technical") {
+    whyBits.push(`source: ${data.signal_source.replace(/_/g, " ")}`);
+  }
+  const notes = (data.fundamental_notes || []).slice(0, 2);
+  setText(
+    "action-why",
+    "Why: " + (whyBits.join(" · ") || "full multi-factor scan") +
+      (notes.length ? " · " + notes.join(" · ") : "")
+  );
+
+  // Checklist chips
+  const checked = buildChecklist(data);
+  const chipEl = document.getElementById("action-checked");
+  if (chipEl) {
+    chipEl.innerHTML = checked
+      .map((c) => `<span class="check-chip ${c.ok ? "ok" : "no"}">${c.ok ? "✓" : "·"} ${c.label}</span>`)
+      .join("");
+  }
+  const detailList = document.getElementById("checklist-detail");
+  if (detailList) {
+    detailList.innerHTML = checked
+      .map((c) => `<li class="${c.ok ? "ok" : ""}">${c.ok ? "✓" : "○"} ${c.label}${c.detail ? ` — ${c.detail}` : ""}</li>`)
+      .join("");
+  }
+
+  renderUserLevelsBanner(data);
+}
+
+function buildActionSteps(signal, plan, data, fmt) {
+  const steps = [];
+  const status = plan.position_status || "";
+
+  if (signal === "WAIT") {
+    steps.push("Stay flat — do not open a new trade.");
+    if (plan.nearest_support != null) {
+      steps.push(`Watch support near ${fmt(plan.nearest_support)} for a possible bounce.`);
+    }
+    if (plan.nearest_resistance != null) {
+      steps.push(`Watch resistance near ${fmt(plan.nearest_resistance)} for a possible rejection.`);
+    }
+    if (!data.user_sr?.has_drawings && ASSET.id === "eurusd") {
+      steps.push("Draw your main 4H support & resistance lines (H tool) so entries can use them.");
+    } else {
+      steps.push("Wait for 1H and 4H to agree, and for price to tag a key level.");
+    }
+    if (data.calendar_risk?.risk_level === "high") {
+      steps.push("High-impact news is nearby — keep size small or stay out.");
+    }
+    return steps;
+  }
+
+  const side = signal === "BUY" ? "BUY" : "SELL";
+  if (status === "WAITING_FOR_ENTRY") {
+    steps.push(
+      `Do not enter at market. Wait for price to reach ${fmt(plan.entry)}.`
+    );
+    steps.push(plan.entry_trigger || `Place a limit ${side} around ${fmt(plan.entry)}.`);
+  } else if (status === "SKIP_POOR_RR") {
+    steps.push("Skip this trade — reward is too small vs risk.");
+    steps.push(plan.entry_trigger || "Wait for a cleaner level closer to support/resistance.");
+    return steps;
+  } else {
+    steps.push(
+      `Enter ${side} now at around ${fmt(plan.entry)} (or market if spread is tight).`
+    );
+    if (plan.entry_trigger) steps.push(plan.entry_trigger);
+  }
+
+  steps.push(`Set stop loss at ${fmt(plan.stop_loss)} — exit if this level breaks.`);
+  steps.push(
+    `Take profit: TP1 ${fmt(plan.take_profit_1)} (close ~50%), ` +
+      `TP2 ${fmt(plan.take_profit_2)}, TP3 ${fmt(plan.take_profit_3)}.`
+  );
+  if (plan.risk_reward) {
+    steps.push(`Risk:reward is about 1:${plan.risk_reward}. Only take if that fits your rules.`);
+  }
+  steps.push("After TP1, move stop to break-even. Skip if high-impact news is under 30 minutes away.");
+  return steps;
+}
+
+function buildChecklist(data) {
+  const plan = data.trade_plan || {};
+  const items = [
+    {
+      label: "1H + 4H alignment",
+      ok: !!data.timeframes_aligned,
+      detail: data.timeframes_aligned ? "aligned" : "not aligned",
+    },
+    {
+      label: "Technical signal",
+      ok: data.technical_signal === data.signal || data.signal !== "WAIT",
+      detail: `${data.technical_signal || "—"} (${data.technical_confidence ?? "—"}%)`,
+    },
+    {
+      label: "News / calendar",
+      ok: data.calendar_risk?.risk_level !== "high",
+      detail:
+        data.calendar_risk?.risk_level === "high"
+          ? "high impact soon"
+          : (data.news_sentiment?.overall || "neutral"),
+    },
+    {
+      label: "Your 4H levels",
+      ok: !!data.user_sr?.has_drawings,
+      detail: data.user_sr?.has_drawings
+        ? `${data.user_sr.count_4h || 0} levels`
+        : "none drawn yet",
+    },
+    {
+      label: "Risk:reward",
+      ok: !plan.risk_reward || plan.risk_reward >= 1.3,
+      detail: plan.risk_reward ? `1:${plan.risk_reward}` : "n/a",
+    },
+  ];
+  if (ASSET.id === "bitcoin" && data.attention_liquidity) {
+    items.push({
+      label: "Attention liquidity",
+      ok: (data.attention_liquidity.score || 0) >= 40,
+      detail: `${data.attention_liquidity.score ?? "—"} · ${data.attention_liquidity.phase || ""}`,
+    });
+  }
+  return items;
 }
 
 function renderQuote(quote, decimals) {
-  document.getElementById("live-price").textContent = fmtPrice(quote.price, decimals);
+  quote = quote || {};
+  setText("live-price", fmtPrice(quote.price, decimals));
   const changeEl = document.getElementById("price-change");
-  if (quote.change !== undefined) {
+  if (changeEl && quote.change !== undefined) {
     const sign = quote.change >= 0 ? "+" : "";
-    changeEl.textContent = `${sign}${fmtPrice(quote.change, decimals)} (${sign}${quote.change_pct?.toFixed(2)}%)`;
+    changeEl.textContent = `${sign}${fmtPrice(quote.change, decimals)} (${sign}${quote.change_pct?.toFixed(2) || "0"}%)`;
     changeEl.className = "change " + (quote.change >= 0 ? "up" : "down");
   }
 }
 
 function renderSignal(data) {
   const signal = data.signal || "WAIT";
-  document.getElementById("signal-panel").className = "signal-panel card " + signal.toLowerCase();
+  const panel = document.getElementById("signal-panel");
+  if (panel) panel.className = "signal-panel card " + signal.toLowerCase();
   const badge = document.getElementById("signal-badge");
-  badge.className = "signal-badge " + signal.toLowerCase();
-  badge.textContent = signal;
-
-  const conf = data.confidence || 0;
-  document.getElementById("confidence-fill").style.width = conf + "%";
-  document.getElementById("confidence-text").textContent = conf.toFixed(1) + "%";
-
-  let summary = `${signal} signal with ${conf.toFixed(0)}% confidence`;
-  if (data.signal_source === "news_release") summary += " [NEWS RELEASE OVERRIDE]";
-  else if (data.signal_source === "news") summary += " [NEWS-DRIVEN]";
-  else if (data.signal_source === "attention") summary += " [ATTENTION LIQUIDITY]";
-  else if (data.signal_source === "attention+technical") summary += " [TECH + ATTENTION]";
-  else if (data.signal_source === "attention+news") summary += " [ATTENTION + NEWS]";
-  summary += `. Confluence: ${data.confluence ?? "—"}/9. `;
-  summary += `4H trend: ${formatTrend(data.primary_trend)}. `;
-  if (data.timeframes_aligned) summary += "1H and 4H aligned. ";
-  else summary += "1H/4H not aligned — prefer WAIT. ";
-
-  const plan = data.trade_plan || {};
-  if (plan.position_status) summary += `Plan: ${plan.position_status}. `;
-  if (plan.risk_reward != null) summary += `R:R ${plan.risk_reward}. `;
-
-  const usr = data.user_sr || {};
-  if (usr.has_drawings) {
-    summary += ` Your levels: ${usr.count_4h || 0} on 4H`;
-    if (usr.near_user_support) summary += " · AT SUPPORT";
-    if (usr.near_user_resistance) summary += " · AT RESISTANCE";
-    summary += ". ";
-  } else if (ASSET.id === "eurusd") {
-    summary += " Draw H-lines/zones on 4H — they drive entries & stops. ";
+  if (badge) {
+    badge.className = "signal-badge " + signal.toLowerCase();
+    badge.textContent = signal;
   }
 
-  const vol = data.analysis_1h?.indicators;
-  if (vol?.volume_ratio) summary += `Volume ${vol.volume_ratio}x avg. `;
-  if (data.fundamental_notes?.length) summary += data.fundamental_notes.slice(0, 4).join(" · ");
+  const conf = data.confidence || 0;
+  const fill = document.getElementById("confidence-fill");
+  if (fill) fill.style.width = conf + "%";
+  setText("confidence-text", conf.toFixed(1) + "%");
 
-  document.getElementById("signal-summary").textContent = summary;
-  renderUserLevelsBanner(data);
-  document.getElementById("combined-score").textContent = data.adjusted_score ?? data.combined_score ?? "—";
-  document.getElementById("confluence").textContent = data.confluence != null ? data.confluence + "/9" : "—";
-  document.getElementById("trend-4h").textContent = formatTrend(data.primary_trend);
-  document.getElementById("tf-aligned").textContent = data.timeframes_aligned ? "Yes" : "No";
+  let summary = `${signal} · ${conf.toFixed(0)}%`;
+  if (data.signal_source && data.signal_source !== "technical") {
+    summary += ` · ${data.signal_source.replace(/_/g, " ")}`;
+  }
+  setText("signal-summary", summary);
+  setText("combined-score", String(data.adjusted_score ?? data.combined_score ?? "—"));
+  setText("confluence", data.confluence != null ? data.confluence + "/9" : "—");
+  setText("trend-4h", formatTrend(data.primary_trend));
+  setText("tf-aligned", data.timeframes_aligned ? "Yes" : "No");
   const ns = data.news_sentiment || {};
-  const sentText = ns.overall
-    ? `${ns.overall} (${ns.bullish_pct || 0}% bull / ${ns.bearish_pct || 0}% bear)`
-    : "—";
-  document.getElementById("news-sentiment").textContent = sentText;
-
+  setText(
+    "news-sentiment",
+    ns.overall
+      ? `${ns.overall} (${ns.bullish_pct || 0}% bull / ${ns.bearish_pct || 0}% bear)`
+      : "—"
+  );
+  const vol = data.analysis_1h?.indicators;
   const volEl = document.getElementById("volume-signal");
   if (volEl && vol) {
     volEl.textContent = `${vol.volume_signal || "—"} (${vol.volume_ratio || "?"}x)`;
@@ -173,26 +358,33 @@ function formatTrend(t) {
 }
 
 function renderTradePlan(plan, exitCheck, decimals) {
-  const fmt = v => fmtPrice(v, decimals);
-  document.getElementById("tp-entry").textContent = fmt(plan.entry);
-  document.getElementById("tp-sl").textContent = fmt(plan.stop_loss);
-  document.getElementById("tp-tp1").textContent = fmt(plan.take_profit_1);
-  document.getElementById("tp-tp2").textContent = fmt(plan.take_profit_2);
-  document.getElementById("tp-tp3").textContent = fmt(plan.take_profit_3);
-  document.getElementById("tp-rr").textContent = plan.risk_reward ? "1:" + plan.risk_reward : "—";
-  document.getElementById("entry-trigger").textContent = plan.entry_trigger || "—";
-  document.getElementById("exit-trigger").textContent = plan.exit_trigger || "—";
+  const fmt = (v) => fmtPrice(v, decimals);
+  plan = plan || {};
+  setText("tp-entry", fmt(plan.entry));
+  setText("tp-sl", fmt(plan.stop_loss));
+  setText("tp-tp1", fmt(plan.take_profit_1));
+  setText("tp-tp2", fmt(plan.take_profit_2));
+  setText("tp-tp3", fmt(plan.take_profit_3));
+  setText("tp-rr", plan.risk_reward ? "1:" + plan.risk_reward : "—");
+  setText("entry-trigger", plan.entry_trigger || "—");
+  setText("exit-trigger", plan.exit_trigger || "—");
 
   const exitAlert = document.getElementById("exit-alert");
-  if (exitCheck?.reason) {
-    exitAlert.className = "exit-alert " + (exitCheck.urgency === "immediate" ? "immediate" : "consider");
-    exitAlert.textContent = (exitCheck.should_exit ? "EXIT NOW: " : "WATCH: ") + exitCheck.reason;
-  } else {
-    exitAlert.className = "exit-alert hidden";
+  if (exitAlert) {
+    if (exitCheck?.reason) {
+      exitAlert.className =
+        "exit-alert " + (exitCheck.urgency === "immediate" ? "immediate" : "consider");
+      exitAlert.textContent =
+        (exitCheck.should_exit ? "EXIT NOW: " : "WATCH: ") + exitCheck.reason;
+    } else {
+      exitAlert.className = "exit-alert hidden";
+    }
   }
 
-  document.getElementById("instructions").innerHTML =
-    (plan.instructions || []).map(i => `<li>${i}</li>`).join("");
+  const instr = document.getElementById("instructions");
+  if (instr) {
+    instr.innerHTML = (plan.instructions || []).map((i) => `<li>${i}</li>`).join("");
+  }
 }
 
 const PATTERN_COLORS = {
@@ -683,28 +875,35 @@ function renderNewsTrading(data) {
     badge.textContent = sig;
   }
 
-  document.getElementById("news-combined-signal").textContent = sig;
-  document.getElementById("news-combined-conf").textContent =
-    nt.combined_confidence != null ? nt.combined_confidence.toFixed(1) + "%" : "—";
-  document.getElementById("signal-source").textContent =
-    (data.signal_source || "technical").replace("_", " ").toUpperCase();
-  document.getElementById("active-alert-count").textContent = (nt.active_alerts || []).length;
+  setText("news-combined-signal", sig);
+  setText(
+    "news-combined-conf",
+    nt.combined_confidence != null ? nt.combined_confidence.toFixed(1) + "%" : "—"
+  );
+  setText(
+    "signal-source",
+    (data.signal_source || "technical").replace(/_/g, " ").toUpperCase()
+  );
+  setText("active-alert-count", String((nt.active_alerts || []).length));
 
   const banner = document.getElementById("news-alert-banner");
   const immediate = (nt.active_alerts || []).find(a => a.urgency === "immediate");
   const pre = (nt.active_alerts || []).find(a => a.type === "pre_event" && a.window_minutes <= 15);
-  if (immediate) {
-    banner.className = "news-alert-banner immediate";
-    banner.textContent = `🚨 LIVE: ${immediate.event} → ${immediate.signal} (${immediate.confidence?.toFixed(0)}%) — ${immediate.message}`;
-  } else if (pre) {
-    banner.className = "news-alert-banner pre";
-    banner.textContent = `⏰ ${pre.minutes_until}min: ${pre.event} — ${pre.message}`;
-  } else {
-    banner.className = "news-alert-banner hidden";
+  if (banner) {
+    if (immediate) {
+      banner.className = "news-alert-banner immediate";
+      banner.textContent = `LIVE: ${immediate.event} → ${immediate.signal} (${immediate.confidence?.toFixed(0)}%) — ${immediate.message}`;
+    } else if (pre) {
+      banner.className = "news-alert-banner pre";
+      banner.textContent = `${pre.minutes_until}min: ${pre.event} — ${pre.message}`;
+    } else {
+      banner.className = "news-alert-banner hidden";
+    }
   }
 
   const alertsEl = document.getElementById("active-alerts");
   const alerts = nt.active_alerts || [];
+  if (!alertsEl) return;
   alertsEl.innerHTML = alerts.length ? alerts.map(a => `
     <div class="alert-card ${a.type}">
       <span class="alert-signal ${(a.signal || "wait").toLowerCase()}">${a.signal || "WAIT"}</span>
@@ -720,6 +919,7 @@ function renderNewsTrading(data) {
 
   const upcomingEl = document.getElementById("upcoming-events");
   const upcoming = nt.upcoming_events || [];
+  if (!upcomingEl) return;
   upcomingEl.innerHTML = upcoming.length ? upcoming.map(e => {
     const pb = e.pre_bias || {};
     return `<div class="event-item">
@@ -733,6 +933,7 @@ function renderNewsTrading(data) {
 
   const releasedEl = document.getElementById("released-events");
   const released = nt.released_events || [];
+  if (!releasedEl) return;
   releasedEl.innerHTML = released.length ? released.map(e => {
     const ra = e.release_analysis || {};
     return `<div class="event-item">
@@ -746,19 +947,23 @@ function renderNewsTrading(data) {
 
   const impactsEl = document.getElementById("price-impacts");
   const impacts = nt.price_impacts || [];
-  impactsEl.innerHTML = impacts.length
-    ? "<strong>Price Impact Since Alert:</strong>" + impacts.map(i => `
+  if (impactsEl) {
+    impactsEl.innerHTML = impacts.length
+      ? "<strong>Price Impact Since Alert:</strong>" + impacts.map(i => `
       <div class="impact-row">${i.event?.slice(0, 40)} →
         <span class="${i.direction}">${i.change > 0 ? "+" : ""}${i.change} (${i.change_pct}%)</span>
         [${i.signal}]
       </div>`).join("")
-    : "";
+      : "";
+  }
 
   const histEl = document.getElementById("alert-history");
   const hist = nt.alert_history || [];
-  histEl.innerHTML = hist.slice(0, 8).map(h =>
-    `<div class="hist-item">${h.timestamp?.slice(11, 19) || ""} [${h.type}] ${h.signal || ""} ${h.event?.slice(0, 50) || h.message?.slice(0, 50) || ""}</div>`
-  ).join("");
+  if (histEl) {
+    histEl.innerHTML = hist.slice(0, 8).map(h =>
+      `<div class="hist-item">${h.timestamp?.slice(11, 19) || ""} [${h.type}] ${h.signal || ""} ${h.event?.slice(0, 50) || h.message?.slice(0, 50) || ""}</div>`
+    ).join("");
+  }
 }
 
 const ATTENTION_COMPONENT_LABELS = {

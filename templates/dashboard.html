@@ -4,269 +4,242 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ asset.title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=10">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 </head>
-<body class="asset-{{ asset.id }}">
-  <header class="header">
+<body class="asset-{{ asset.id }} simple-ui">
+  <header class="header simple-header">
     <div class="header-left">
-      <h1>{{ asset.title }}</h1>
-      <span class="subtitle">Multi-Timeframe Analysis · 1H + 4H Strategy</span>
       <nav class="nav-tabs">
         {% for a in assets %}
         <a href="{{ a.route }}" class="nav-tab{% if a.id == active_asset %} active{% endif %}">{{ a.name }}</a>
         {% endfor %}
-        <a href="/balance" class="nav-tab">Balance Sheet</a>
+        <a href="/balance" class="nav-tab">Balance</a>
       </nav>
     </div>
-    <div class="header-right">
-      <div class="price-display">
-        <span class="pair">{{ asset.name }}</span>
-        <span id="live-price" class="price">—</span>
-        <span id="price-change" class="change">—</span>
-      </div>
-      <div class="status">
+    <div class="header-right simple-price">
+      <span id="live-price" class="price">—</span>
+      <span id="price-change" class="change">—</span>
+      <span class="status">
         <span id="connection-status" class="status-dot offline"></span>
-        <span id="last-update">Connecting...</span>
-      </div>
+        <span id="last-update">…</span>
+      </span>
     </div>
   </header>
 
-  <main class="dashboard">
-    <section class="trade-alerts-panel card" id="trade-alerts-panel">
-      <div class="trade-alerts-header">
+  <main class="dashboard simple-dashboard">
+    <!-- PRIMARY: clear action -->
+    <section id="action-card" class="action-card wait">
+      <div class="action-top">
         <div>
-          <h2>Real-Time Trade Alerts — All Symbols</h2>
-          <p class="trade-alerts-sub">BUY · SELL · ENTRY · EXIT for EUR/USD, Gold &amp; Bitcoin — works 24/7 with Telegram</p>
+          <p class="action-kicker">After full analysis</p>
+          <h1 id="action-verb" class="action-verb">ANALYSING…</h1>
+          <p id="action-plain" class="action-plain">Checking indicators, news, calendar &amp; your levels…</p>
         </div>
-        <div class="trade-alerts-status" id="trade-alerts-status">Loading…</div>
-      </div>
-      <div class="trade-alerts-controls">
-        <label class="ta-check"><input type="checkbox" id="taEnabled" checked /> Alerts ON</label>
-        <label class="ta-check"><input type="checkbox" id="taBrowser" checked /> Browser push</label>
-        <label class="ta-check"><input type="checkbox" id="taBuy" checked /> BUY</label>
-        <label class="ta-check"><input type="checkbox" id="taSell" checked /> SELL</label>
-        <label class="ta-check"><input type="checkbox" id="taEntry" checked /> ENTRY</label>
-        <label class="ta-check"><input type="checkbox" id="taExit" checked /> EXIT</label>
-        <label class="ta-check"><input type="checkbox" id="taEurusd" checked /> EUR/USD</label>
-        <label class="ta-check"><input type="checkbox" id="taGold" checked /> Gold</label>
-        <label class="ta-check"><input type="checkbox" id="taBitcoin" checked /> Bitcoin</label>
-      </div>
-      <div class="trade-alerts-telegram" id="taTelegramSection">
-        <label class="ta-check"><input type="checkbox" id="taTelegram" /> Telegram (24/7 phone alerts)</label>
-        <p class="ta-perm-note" id="taSavedNote" hidden>Credentials saved permanently on this PC</p>
-        <div class="ta-tg-row">
-          <input type="password" id="taTgToken" placeholder="Bot token" autocomplete="off" />
-          <input type="text" id="taTgChat" placeholder="Chat ID" />
-          <button type="button" class="ta-btn" id="taDiscover">Find chat ID</button>
-        </div>
-        <div id="taChatPick" class="ta-chat-pick" hidden></div>
-        <p class="ta-warn" id="taChatWarn" hidden></p>
-        <div class="ta-tg-row">
-          <button type="button" class="ta-btn" id="taSave">Save permanently</button>
-          <button type="button" class="ta-btn primary" id="taTest">Test Telegram</button>
+        <div class="action-conf">
+          <span class="action-conf-label">Confidence</span>
+          <span id="action-conf-value" class="action-conf-value">—</span>
         </div>
       </div>
-      <div id="trade-alert-banner" class="trade-alert-banner hidden"></div>
-      <div id="trade-alert-feed" class="trade-alert-feed"></div>
-    </section>
 
-    {% if asset.show_agent %}
-    <section class="agent-panel card" id="agent-panel">
-      <h2>XM Trading Agent</h2>
-      <div class="agent-grid">
-        <div class="agent-stat"><span class="label">Status</span><span id="agent-status" class="value">—</span></div>
-        <div class="agent-stat"><span class="label">Mode</span><span id="agent-mode" class="value">—</span></div>
-        <div class="agent-stat"><span class="label">Last Action</span><span id="agent-action" class="value small">—</span></div>
-        <div class="agent-stat"><span class="label">Open Positions</span><span id="agent-positions" class="value">—</span></div>
-      </div>
-      <div id="agent-log" class="agent-log"></div>
-    </section>
-    {% endif %}
+      <ol id="action-steps" class="action-steps">
+        <li>Loading…</li>
+      </ol>
 
-    <!-- News Trading Alerts -->
-    <section class="news-trading-panel card" id="news-trading-panel">
-      <div class="news-trading-header">
-        <h2>News Trading — Live Alerts</h2>
-        <div class="news-signal-badge" id="news-signal-badge">WAIT</div>
+      <div class="action-levels" id="action-levels">
+        <div class="al-box entry"><span>Entry</span><strong id="tp-entry">—</strong></div>
+        <div class="al-box sl"><span>Stop loss</span><strong id="tp-sl">—</strong></div>
+        <div class="al-box tp"><span>Take profit 1</span><strong id="tp-tp1">—</strong></div>
+        <div class="al-box tp"><span>Take profit 2</span><strong id="tp-tp2">—</strong></div>
+        <div class="al-box tp"><span>Take profit 3</span><strong id="tp-tp3">—</strong></div>
+        <div class="al-box rr"><span>Risk : Reward</span><strong id="tp-rr">—</strong></div>
       </div>
-      <div class="news-trading-grid">
-        <div class="news-stat"><span class="label">News Signal</span><span id="news-combined-signal" class="value">—</span></div>
-        <div class="news-stat"><span class="label">Confidence</span><span id="news-combined-conf" class="value">—</span></div>
-        <div class="news-stat"><span class="label">Signal Source</span><span id="signal-source" class="value">—</span></div>
-        <div class="news-stat"><span class="label">Active Alerts</span><span id="active-alert-count" class="value">0</span></div>
-        <div class="news-stat"><span class="label">MyFXBook Crowd</span><span id="fxbook-crowd" class="value">—</span></div>
-        <div class="news-stat"><span class="label">Long / Short %</span><span id="fxbook-long-short" class="value">—</span></div>
-        <div class="news-stat"><span class="label">FX News Headlines</span><span id="fxbook-news-count" class="value">—</span></div>
-        <div class="news-stat"><span class="label">Calendar (24h)</span><span id="calendar-24h" class="value">—</span></div>
-      </div>
-      <div id="fxbook-panel" class="fxbook-panel"></div>
-      <div id="news-alert-banner" class="news-alert-banner hidden"></div>
-      <div id="active-alerts" class="active-alerts"></div>
-      <div class="news-sections">
-        <div class="news-section">
-          <h3>Upcoming Events</h3>
-          <div id="upcoming-events" class="event-list"></div>
-        </div>
-        <div class="news-section">
-          <h3>Released / Impact</h3>
-          <div id="released-events" class="event-list"></div>
-        </div>
-      </div>
-      <div id="price-impacts" class="price-impacts"></div>
-      <div id="alert-history" class="alert-history"></div>
-    </section>
 
-    {% if asset.id == 'bitcoin' %}
-    <section class="attention-panel card" id="attention-panel">
-      <div class="attention-header">
-        <div>
-          <h2>Attention Liquidity Monitor</h2>
-          <p class="attention-tagline">Attention is liquidity — buzz, marketing &amp; influencers recruit the next buyer</p>
-        </div>
-        <div class="attention-ali-wrap">
-          <span class="attention-ali-label">ALI</span>
-          <span id="ali-score" class="attention-ali-score">—</span>
-          <span id="ali-phase" class="attention-phase">—</span>
-        </div>
-      </div>
-      <div class="attention-signal-row">
-        <div class="attention-signal-badge wait" id="attention-signal-badge">WAIT</div>
-        <div class="attention-signal-meta">
-          <span id="attention-confidence">—</span>
-          <p id="attention-reason" class="attention-reason">Scanning narrative liquidity…</p>
-        </div>
-      </div>
-      <div class="attention-gauge">
-        <div class="attention-gauge-track">
-          <div id="ali-gauge-fill" class="attention-gauge-fill" style="width:0%"></div>
-        </div>
-        <div class="attention-gauge-labels">
-          <span>Quiet</span><span>Accumulation</span><span>Hype</span><span>Peak</span>
-        </div>
-      </div>
-      <div class="attention-components" id="attention-components"></div>
-      <div class="attention-stats">
-        <div class="attention-stat"><span class="label">Momentum</span><span id="ali-momentum" class="value">—</span></div>
-        <div class="attention-stat"><span class="label">Headlines 1h</span><span id="ali-buzz-1h" class="value">—</span></div>
-        <div class="attention-stat"><span class="label">Recruitment hits</span><span id="ali-recruit-hits" class="value">—</span></div>
-        <div class="attention-stat"><span class="label">Fear / exit talk</span><span id="ali-fear-hits" class="value">—</span></div>
-        <div class="attention-stat"><span class="label">CoinGecko trend</span><span id="ali-trending" class="value">—</span></div>
-        <div class="attention-stat"><span class="label">Price vs buzz</span><span id="ali-divergence" class="value">—</span></div>
-      </div>
-      <div id="attention-drivers" class="attention-drivers"></div>
-      <p id="attention-liquidity-note" class="attention-liquidity-note"></p>
-    </section>
-    {% endif %}
-
-    <section class="signal-panel card" id="signal-panel">
-      <div class="signal-main">
-        <div id="signal-badge" class="signal-badge wait">WAIT</div>
-        <div class="signal-details">
-          <div class="confidence-bar">
-            <label>Confidence</label>
-            <div class="bar-track"><div id="confidence-fill" class="bar-fill" style="width:0%"></div></div>
-            <span id="confidence-text">0%</span>
-          </div>
-          <p id="signal-summary" class="signal-summary">Loading analysis...</p>
-        </div>
-      </div>
-      <div class="score-grid">
-        <div class="score-item"><span class="label">Combined Score</span><span id="combined-score" class="value">—</span></div>
-        <div class="score-item"><span class="label">Confluence</span><span id="confluence" class="value">—</span></div>
-        <div class="score-item"><span class="label">4H Trend</span><span id="trend-4h" class="value">—</span></div>
-        <div class="score-item"><span class="label">TF Aligned</span><span id="tf-aligned" class="value">—</span></div>
-        <div class="score-item"><span class="label">Volume</span><span id="volume-signal" class="value">—</span></div>
-        <div class="score-item"><span class="label">News Sentiment</span><span id="news-sentiment" class="value">—</span></div>
-      </div>
-    </section>
-
-    <section class="trade-plan card">
-      <h2>Trade Plan — Entry & Exit</h2>
-      <div class="trade-grid">
-        <div class="trade-level entry"><span class="tl-label">ENTRY</span><span id="tp-entry" class="tl-value">—</span></div>
-        <div class="trade-level sl"><span class="tl-label">STOP LOSS</span><span id="tp-sl" class="tl-value">—</span></div>
-        <div class="trade-level tp"><span class="tl-label">TAKE PROFIT 1</span><span id="tp-tp1" class="tl-value">—</span></div>
-        <div class="trade-level tp"><span class="tl-label">TAKE PROFIT 2</span><span id="tp-tp2" class="tl-value">—</span></div>
-        <div class="trade-level tp"><span class="tl-label">TAKE PROFIT 3</span><span id="tp-tp3" class="tl-value">—</span></div>
-        <div class="trade-level rr"><span class="tl-label">RISK:REWARD</span><span id="tp-rr" class="tl-value">—</span></div>
-      </div>
-      <div class="trade-triggers">
-        <div class="trigger"><strong>Entry Trigger:</strong> <span id="entry-trigger">—</span></div>
-        <div class="trigger"><strong>Exit Trigger:</strong> <span id="exit-trigger">—</span></div>
-        <div id="exit-alert" class="exit-alert hidden"></div>
-      </div>
-      <ul id="instructions" class="instructions"></ul>
+      <div id="exit-alert" class="exit-alert hidden"></div>
+      <p id="action-why" class="action-why"></p>
+      <div class="action-checked" id="action-checked"></div>
     </section>
 
     <div id="user-levels-banner" class="user-levels-banner tip">
-      Loading your chart levels…
+      Draw support/resistance on the 4H chart (H or Zone tools) — trades use those levels.
     </div>
 
-    <section class="charts-row">
-      <div class="card chart-card">
-        <div class="chart-card-header">
-          <h2>1H Chart</h2>
-          <button type="button" class="chart-expand-btn" data-chart="chart-1h" title="Open fullscreen chart">⛶ Fullscreen</button>
-          <div class="chart-toolbar" data-chart="chart-1h"></div>
-          <div id="pattern-legend-1h" class="pattern-legend"></div>
-        </div>
-        <div class="chart-wrap">
-          <div id="chart-hint-1h" class="chart-draw-hint hidden"></div>
-          <div id="chart-1h" class="chart"></div>
-        </div>
+    <!-- 4H chart first (what you trade against) -->
+    <section class="card chart-card simple-chart">
+      <div class="chart-card-header">
+        <h2>4H Chart — draw your S/R here</h2>
+        <button type="button" class="chart-expand-btn" data-chart="chart-4h" title="Fullscreen">⛶</button>
+        <div class="chart-toolbar" data-chart="chart-4h"></div>
+        <div id="pattern-legend-4h" class="pattern-legend"></div>
       </div>
-      <div class="card chart-card">
-        <div class="chart-card-header">
-          <h2>4H Chart</h2>
-          <button type="button" class="chart-expand-btn" data-chart="chart-4h" title="Open fullscreen chart">⛶ Fullscreen</button>
-          <div class="chart-toolbar" data-chart="chart-4h"></div>
-          <div id="pattern-legend-4h" class="pattern-legend"></div>
-        </div>
-        <div class="chart-wrap">
-          <div id="chart-hint-4h" class="chart-draw-hint hidden"></div>
-          <div id="chart-4h" class="chart"></div>
-        </div>
+      <div class="chart-wrap">
+        <div id="chart-hint-4h" class="chart-draw-hint hidden"></div>
+        <div id="chart-4h" class="chart"></div>
       </div>
     </section>
 
-    <section class="analysis-row">
-      <div class="card">
-        <h2>1H Analysis</h2>
-        <div id="analysis-1h" class="analysis-content"></div>
+    <details class="card simple-more">
+      <summary>1H chart</summary>
+      <div class="chart-card-header">
+        <button type="button" class="chart-expand-btn" data-chart="chart-1h">⛶</button>
+        <div class="chart-toolbar" data-chart="chart-1h"></div>
+        <div id="pattern-legend-1h" class="pattern-legend"></div>
       </div>
-      <div class="card">
-        <h2>4H Analysis</h2>
-        <div id="analysis-4h" class="analysis-content"></div>
+      <div class="chart-wrap">
+        <div id="chart-hint-1h" class="chart-draw-hint hidden"></div>
+        <div id="chart-1h" class="chart"></div>
       </div>
-    </section>
+    </details>
 
-    <section class="bottom-row">
-      <div class="card">
-        <h2>{{ asset.news_title }}</h2>
-        <div id="news-list" class="news-list"></div>
+    <details class="card simple-more" id="details-panel">
+      <summary>More details (indicators · news · alerts)</summary>
+
+      <div class="simple-detail-grid">
+        <div>
+          <h3>What was checked</h3>
+          <ul id="checklist-detail" class="simple-list"></ul>
+        </div>
+        <div>
+          <h3>1H snapshot</h3>
+          <div id="analysis-1h" class="analysis-content compact"></div>
+        </div>
+        <div>
+          <h3>4H snapshot</h3>
+          <div id="analysis-4h" class="analysis-content compact"></div>
+        </div>
       </div>
-      <div class="card">
-        <h2>{{ asset.calendar_title }}</h2>
-        <div id="calendar-risk" class="calendar-risk"></div>
-        <div id="calendar-list" class="calendar-list"></div>
+
+      {% if asset.id == 'bitcoin' %}
+      <div class="attention-mini" id="attention-panel">
+        <h3>Attention liquidity</h3>
+        <p><span id="ali-score">—</span> · <span id="ali-phase">—</span> · <span id="attention-reason">—</span></p>
+        <div id="attention-components" class="hidden"></div>
+        <span id="attention-signal-badge" class="hidden">WAIT</span>
+        <span id="attention-confidence" class="hidden"></span>
+        <span id="ali-gauge-fill" class="hidden" style="width:0"></span>
+        <span id="ali-momentum" class="hidden"></span>
+        <span id="ali-buzz-1h" class="hidden"></span>
+        <span id="ali-recruit-hits" class="hidden"></span>
+        <span id="ali-fear-hits" class="hidden"></span>
+        <span id="ali-trending" class="hidden"></span>
+        <span id="ali-divergence" class="hidden"></span>
+        <div id="attention-drivers" class="hidden"></div>
+        <p id="attention-liquidity-note" class="hidden"></p>
       </div>
-    </section>
+      {% endif %}
+
+      <div class="simple-detail-grid two">
+        <div>
+          <h3>News</h3>
+          <div id="news-list" class="news-list"></div>
+        </div>
+        <div>
+          <h3>Calendar</h3>
+          <div id="calendar-risk" class="calendar-risk"></div>
+          <div id="calendar-list" class="calendar-list"></div>
+        </div>
+      </div>
+
+      <!-- Keep IDs for existing JS (hidden chrome) -->
+      <div class="hidden-legacy">
+        <div id="signal-panel" class="signal-panel">
+          <div id="signal-badge" class="signal-badge wait">WAIT</div>
+          <div id="confidence-fill" style="width:0"></div>
+          <span id="confidence-text"></span>
+          <p id="signal-summary"></p>
+          <span id="combined-score"></span>
+          <span id="confluence"></span>
+          <span id="trend-4h"></span>
+          <span id="tf-aligned"></span>
+          <span id="volume-signal"></span>
+          <span id="news-sentiment"></span>
+        </div>
+        <div id="entry-trigger"></div>
+        <div id="exit-trigger"></div>
+        <ul id="instructions"></ul>
+        <div id="news-signal-badge">WAIT</div>
+        <span id="news-combined-signal"></span>
+        <span id="news-combined-conf"></span>
+        <span id="signal-source"></span>
+        <span id="active-alert-count"></span>
+        <span id="fxbook-crowd"></span>
+        <span id="fxbook-long-short"></span>
+        <span id="fxbook-news-count"></span>
+        <span id="calendar-24h"></span>
+        <div id="fxbook-panel"></div>
+        <div id="news-alert-banner" class="hidden"></div>
+        <div id="active-alerts"></div>
+        <div id="upcoming-events"></div>
+        <div id="released-events"></div>
+        <div id="price-impacts"></div>
+        <div id="alert-history"></div>
+        {% if asset.show_agent %}
+        <div id="agent-panel">
+          <span id="agent-status"></span>
+          <span id="agent-mode"></span>
+          <span id="agent-action"></span>
+          <span id="agent-positions"></span>
+          <div id="agent-log"></div>
+        </div>
+        {% endif %}
+      </div>
+
+      <details class="simple-alerts-details">
+        <summary>Alert settings (Telegram / browser)</summary>
+        <section class="trade-alerts-panel" id="trade-alerts-panel">
+          <div class="trade-alerts-header">
+            <div>
+              <h2>Trade alerts</h2>
+              <p class="trade-alerts-sub">Optional phone push</p>
+            </div>
+            <div class="trade-alerts-status" id="trade-alerts-status">—</div>
+          </div>
+          <div class="trade-alerts-controls">
+            <label class="ta-check"><input type="checkbox" id="taEnabled" checked /> Alerts ON</label>
+            <label class="ta-check"><input type="checkbox" id="taBrowser" checked /> Browser</label>
+            <label class="ta-check"><input type="checkbox" id="taBuy" checked /> BUY</label>
+            <label class="ta-check"><input type="checkbox" id="taSell" checked /> SELL</label>
+            <label class="ta-check"><input type="checkbox" id="taEntry" checked /> ENTRY</label>
+            <label class="ta-check"><input type="checkbox" id="taExit" checked /> EXIT</label>
+            <label class="ta-check"><input type="checkbox" id="taEurusd" checked /> EUR/USD</label>
+            <label class="ta-check"><input type="checkbox" id="taGold" checked /> Gold</label>
+            <label class="ta-check"><input type="checkbox" id="taBitcoin" checked /> Bitcoin</label>
+          </div>
+          <div class="trade-alerts-telegram" id="taTelegramSection">
+            <label class="ta-check"><input type="checkbox" id="taTelegram" /> Telegram</label>
+            <p class="ta-perm-note" id="taSavedNote" hidden>Saved on this PC</p>
+            <div class="ta-tg-row">
+              <input type="password" id="taTgToken" placeholder="Bot token" autocomplete="off" />
+              <input type="text" id="taTgChat" placeholder="Chat ID" />
+              <button type="button" class="ta-btn" id="taDiscover">Find chat ID</button>
+            </div>
+            <div id="taChatPick" class="ta-chat-pick" hidden></div>
+            <p class="ta-warn" id="taChatWarn" hidden></p>
+            <div class="ta-tg-row">
+              <button type="button" class="ta-btn" id="taSave">Save</button>
+              <button type="button" class="ta-btn primary" id="taTest">Test</button>
+            </div>
+          </div>
+          <div id="trade-alert-banner" class="trade-alert-banner hidden"></div>
+          <div id="trade-alert-feed" class="trade-alert-feed"></div>
+        </section>
+      </details>
+    </details>
   </main>
 
   <div id="chart-fullscreen" class="chart-fullscreen hidden">
     <div class="chart-fullscreen-header">
       <h2 id="chart-fullscreen-title">Chart</h2>
       <div id="chart-fullscreen-toolbar" class="chart-toolbar"></div>
-      <button type="button" id="chart-fullscreen-close" class="chart-fs-close">Exit Fullscreen</button>
+      <button type="button" id="chart-fullscreen-close" class="chart-fs-close">Exit</button>
     </div>
     <div id="chart-fullscreen-plot" class="chart-fullscreen-plot"></div>
   </div>
 
-  <footer class="footer">
-    <p>Disclaimer: For educational purposes only. Not financial advice. Trading carries significant risk.</p>
-    <button id="refresh-btn" class="refresh-btn">Refresh Now</button>
+  <footer class="footer simple-footer">
+    <button id="refresh-btn" class="refresh-btn">Refresh analysis</button>
+    <p>Educational only · Not financial advice · Trading is risky</p>
   </footer>
 
   <script>
@@ -279,8 +252,8 @@
       showAgent: {{ "true" if asset.show_agent else "false" }}
     };
   </script>
-  <script src="/static/js/chart-tools.js?v=3"></script>
-  <script src="/static/js/trade-alerts.js?v=4"></script>
-  <script src="/static/js/app.js?v=3"></script>
+  <script src="/static/js/chart-tools.js?v=5"></script>
+  <script src="/static/js/trade-alerts.js?v=5"></script>
+  <script src="/static/js/app.js?v=10"></script>
 </body>
 </html>

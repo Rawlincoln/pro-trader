@@ -969,13 +969,248 @@ body.chart-fs-open { overflow: hidden; }
 .bs-hero-meta { color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.9; }
 
 .user-levels-banner {
-  margin: 0.5rem 1rem 0;
+  margin: 0;
   padding: 0.65rem 1rem;
   border-radius: 10px;
   font-size: 0.88rem;
   border: 1px solid rgba(251, 191, 36, 0.25);
   background: rgba(251, 191, 36, 0.08);
   color: var(--text, #e2e8f0);
+}
+
+/* ========== Simple trading UI ========== */
+.simple-ui .simple-header {
+  padding: 0.75rem 1.25rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.simple-ui .simple-dashboard {
+  max-width: 920px;
+  gap: 1rem;
+  padding: 1rem;
+}
+.simple-ui .simple-price {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.simple-ui .simple-price .price { font-size: 1.6rem; }
+.simple-ui .simple-price .status { margin-top: 0; }
+
+.action-card {
+  border-radius: 16px;
+  padding: 1.5rem 1.35rem 1.35rem;
+  border: 2px solid var(--border);
+  background: linear-gradient(180deg, #151c2c 0%, var(--card) 100%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.action-card.buy {
+  border-color: rgba(16, 185, 129, 0.65);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.14) 0%, var(--card) 55%);
+}
+.action-card.sell {
+  border-color: rgba(239, 68, 68, 0.65);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.14) 0%, var(--card) 55%);
+}
+.action-card.wait {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.1) 0%, var(--card) 55%);
+}
+
+.action-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+.action-kicker {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.action-verb {
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.35rem;
+}
+.action-card.buy .action-verb { color: var(--buy); }
+.action-card.sell .action-verb { color: var(--sell); }
+.action-card.wait .action-verb { color: var(--wait); }
+.action-plain {
+  font-size: 1.05rem;
+  color: var(--text);
+  max-width: 36rem;
+  line-height: 1.45;
+}
+.action-conf {
+  text-align: center;
+  min-width: 5.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+}
+.action-conf-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.action-conf-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.action-steps {
+  margin: 0 0 1.15rem 1.15rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+.action-steps li { padding-left: 0.25rem; }
+.action-steps li::marker { font-weight: 800; color: var(--accent); }
+.action-card.buy .action-steps li::marker { color: var(--buy); }
+.action-card.sell .action-steps li::marker { color: var(--sell); }
+
+.action-levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+.al-box {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.al-box span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.al-box strong {
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.al-box.entry { border-color: rgba(34, 211, 238, 0.4); }
+.al-box.entry strong { color: var(--entry); }
+.al-box.sl { border-color: rgba(248, 113, 113, 0.45); }
+.al-box.sl strong { color: var(--sl); }
+.al-box.tp { border-color: rgba(74, 222, 128, 0.35); }
+.al-box.tp strong { color: var(--tp); }
+.al-box.rr strong { color: var(--accent); }
+
+.action-why {
+  font-size: 0.88rem;
+  color: var(--muted);
+  margin: 0.5rem 0 0.75rem;
+  line-height: 1.4;
+}
+.action-checked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.check-chip {
+  font-size: 0.75rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.2);
+}
+.check-chip.ok {
+  color: var(--buy);
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.simple-chart .chart { min-height: 360px; }
+.simple-more {
+  padding: 0.75rem 1rem 1rem;
+}
+.simple-more > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--muted);
+  list-style: none;
+  padding: 0.35rem 0;
+}
+.simple-more > summary::-webkit-details-marker { display: none; }
+.simple-more[open] > summary { margin-bottom: 0.75rem; color: var(--text); }
+
+.simple-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+@media (min-width: 800px) {
+  .simple-detail-grid.two { grid-template-columns: 1fr 1fr; }
+}
+.simple-detail-grid h3,
+.attention-mini h3 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.simple-list {
+  list-style: none;
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--muted);
+}
+.simple-list li.ok { color: var(--buy); }
+.analysis-content.compact { font-size: 0.85rem; }
+.hidden-legacy { display: none !important; }
+.simple-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1.25rem;
+}
+.simple-footer .refresh-btn {
+  min-width: 200px;
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.simple-alerts-details { margin-top: 1rem; }
+.simple-alerts-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .action-top { flex-direction: column; }
+  .action-conf { align-self: flex-start; }
+  .action-steps { font-size: 0.98rem; }
 }
 .user-levels-banner.tip { opacity: 0.9; border-style: dashed; }
 .user-levels-banner.active {
