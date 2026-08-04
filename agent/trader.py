@@ -16,8 +16,9 @@ from agent.mt5_client import MT5Client
 from agent.position_manager import PositionManager
 from analysis.signals import build_full_analysis
 from data.calendar import calendar_risk_assessment, fetch_calendar
-from data.fetcher import fetch_ohlc
+from data.fetcher import fetch_ohlc_bundle
 from data.news import fetch_news, news_sentiment_summary
+from data.user_levels import build_user_sr_snapshot
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,12 +32,17 @@ logger = logging.getLogger("trader")
 
 
 def run_cycle(client: MT5Client, manager: PositionManager, config: dict, dry_run: bool) -> None:
-    df_1h = fetch_ohlc("1h")
-    df_4h = fetch_ohlc("4h")
-    news_sent = news_sentiment_summary(fetch_news(8))
-    cal_risk = calendar_risk_assessment(fetch_calendar(3))
+    df_1h, df_4h = fetch_ohlc_bundle("eurusd")
+    news_sent = news_sentiment_summary(fetch_news(8, "eurusd"))
+    cal_risk = calendar_risk_assessment(fetch_calendar(3, "eurusd"))
 
-    full = build_full_analysis(df_1h, df_4h, news_sent, cal_risk)
+    # Match dashboard: include user-drawn S/R when available
+    try:
+        last_close = float(df_1h["close"].iloc[-1])
+    except Exception:
+        last_close = 0.0
+    user_sr = build_user_sr_snapshot("eurusd", last_close, decimals=5, near_dist=0.003)
+    full = build_full_analysis(df_1h, df_4h, news_sent, cal_risk, "eurusd", user_sr=user_sr)
     technical = full["technical"]
     trade_plan = full["trade_plan"]
     exit_check = full["exit_check"]
@@ -44,6 +50,27 @@ def run_cycle(client: MT5Client, manager: PositionManager, config: dict, dry_run
     signal = technical["signal"]
     confidence = technical["confidence"]
     price = trade_plan.get("current_price") or full["analysis_1h"]["indicators"]["price"]
+    # Prefer coach demotion rules if import available
+    try:
+        from analysis.coach import build_coach_card
+        coach = build_coach_card(
+            asset_id="eurusd",
+            signal=signal,
+            confidence=confidence,
+            trade_plan=trade_plan,
+            exit_check=exit_check,
+            technical=technical,
+            calendar_risk=cal_risk,
+            user_sr=user_sr,
+            news_sentiment=news_sent,
+            equity=float((client.get_account() or {}).get("equity") or 1000),
+            risk_percent=float(config.get("risk_percent") or 1.0),
+        )
+        if coach.get("signal") == "WAIT":
+            signal = "WAIT"
+            logger.info("Coach demoted signal (grade %s)", coach.get("grade", {}).get("letter"))
+    except Exception as exc:
+        logger.debug("Coach skipped: %s", exc)
 
     account = client.get_account()
     positions = client.get_positions()

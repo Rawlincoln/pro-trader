@@ -1069,6 +1069,49 @@ body.chart-fs-open { overflow: hidden; }
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+.action-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+.grade-badge, .session-badge, .size-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.25);
+  color: var(--text);
+}
+.grade-badge.grade-a { border-color: rgba(16,185,129,0.6); color: var(--buy); background: rgba(16,185,129,0.12); }
+.grade-badge.grade-b { border-color: rgba(52,211,153,0.5); color: #6ee7b7; }
+.grade-badge.grade-c { border-color: rgba(245,158,11,0.5); color: var(--wait); }
+.grade-badge.grade-d,
+.grade-badge.grade-f { border-color: rgba(239,68,68,0.5); color: var(--sell); }
+.session-badge.sess-best { border-color: rgba(59,130,246,0.55); color: #93c5fd; }
+.session-badge.sess-high { border-color: rgba(59,130,246,0.35); color: #bfdbfe; }
+.session-badge.sess-low { border-color: rgba(148,163,184,0.4); color: var(--muted); }
+.size-badge { border-color: rgba(167,139,250,0.45); color: #c4b5fd; }
+.action-card.grade-strong { box-shadow: 0 12px 40px rgba(16, 185, 129, 0.12); }
+.action-card.grade-weak { opacity: 0.95; }
+.al-hint {
+  font-size: 0.7rem;
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 500;
+}
+.action-size-note {
+  font-size: 0.82rem;
+  color: #c4b5fd;
+  margin: 0 0 0.65rem;
+}
+.action-grade-reasons {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0 0 0.65rem;
+  line-height: 1.4;
+}
 
 .action-steps {
   margin: 0 0 1.15rem 1.15rem;

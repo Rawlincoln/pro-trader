@@ -18,6 +18,7 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 from analysis.attention_liquidity import blend_attention_into_signal, build_attention_liquidity
+from analysis.coach import build_coach_card
 from analysis.indicators import add_all_indicators, indicators_to_series
 from analysis.patterns import pick_primary_pattern
 from analysis.signals import build_full_analysis, check_exit_conditions, generate_trade_plan
@@ -60,8 +61,22 @@ IS_CLOUD = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
 ASYNC_MODE = "threading" if IS_CLOUD else "eventlet"
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "pro-trader-secret")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode=ASYNC_MODE)
+# Never ship a known default secret in production
+_secret = os.environ.get("SECRET_KEY") or os.environ.get("FLASK_SECRET_KEY")
+if not _secret:
+    _secret = "pro-trader-dev-only"
+    if IS_CLOUD:
+        logging.getLogger(__name__).warning(
+            "SECRET_KEY not set — set it in Render env for production"
+        )
+app.config["SECRET_KEY"] = _secret
+# Lock down CORS in cloud; allow all only for local/dev
+_cors = os.environ.get("CORS_ORIGINS", "*")
+socketio = SocketIO(
+    app,
+    cors_allowed_origins=[o.strip() for o in _cors.split(",")] if _cors != "*" else "*",
+    async_mode=ASYNC_MODE,
+)
 
 PORT = int(os.environ.get("PORT", 5000))
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -204,6 +219,75 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             float(price or 0), trade_plan, full["analysis_1h"]["indicators"]
         )
 
+        # Account equity for position sizing (cached ledger snapshot — no live MT5 call)
+        equity = 1000.0
+        risk_pct = 1.0
+        try:
+            cfg = load_agent_config()
+            risk_pct = float(cfg.get("risk_percent") or 1.0)
+            ledger_path = ROOT / "trade_ledger.json"
+            if ledger_path.exists():
+                with open(ledger_path, encoding="utf-8") as lf:
+                    led = json.load(lf)
+                acc = led.get("account_snapshot") or {}
+                if acc.get("equity"):
+                    equity = float(acc["equity"]) or equity
+                elif acc.get("balance"):
+                    equity = float(acc["balance"]) or equity
+        except Exception:
+            pass
+
+        tech_for_coach = {
+            **(full.get("technical") or {}),
+            "timeframes_aligned": full["technical"].get("timeframes_aligned"),
+            "confluence": full["technical"].get("confluence"),
+        }
+        coach = build_coach_card(
+            asset_id=asset_id,
+            signal=final_signal,
+            confidence=float(final_conf or 0),
+            trade_plan=trade_plan,
+            exit_check=exit_check,
+            technical=tech_for_coach,
+            calendar_risk=cal_risk,
+            user_sr=user_sr,
+            news_sentiment=news_sent,
+            signal_source=signal_source,
+            equity=equity,
+            risk_percent=risk_pct,
+        )
+        # Coach may demote weak / thin-session setups
+        if coach.get("signal") == "WAIT" and final_signal in ("BUY", "SELL"):
+            final_signal = "WAIT"
+            final_conf = min(float(final_conf or 0), float(coach.get("confidence") or 50))
+            fundamental_notes.append(
+                f"Coach demoted to WAIT (grade {coach.get('grade', {}).get('letter', '?')})"
+            )
+            trade_plan = generate_trade_plan(
+                signal="WAIT",
+                price=float(price or 0),
+                atr=atr_val,
+                levels_1h=full["analysis_1h"]["levels"],
+                levels_4h=full["analysis_4h"]["levels"],
+                confidence=float(final_conf or 0),
+                asset_id=asset_id,
+                user_sr=user_sr,
+            )
+            coach = build_coach_card(
+                asset_id=asset_id,
+                signal="WAIT",
+                confidence=float(final_conf or 0),
+                trade_plan=trade_plan,
+                exit_check=exit_check,
+                technical=tech_for_coach,
+                calendar_risk=cal_risk,
+                user_sr=user_sr,
+                news_sentiment=news_sent,
+                signal_source=signal_source,
+                equity=equity,
+                risk_percent=risk_pct,
+            )
+
         return {
             "asset_id": asset_id,
             "asset_name": asset["name"],
@@ -226,6 +310,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "analysis_4h": _serialize_analysis(full["analysis_4h"], final_signal),
             "trade_plan": trade_plan,
             "exit_check": exit_check,
+            "coach": coach,
             "user_sr": user_sr,
             "news": news,
             "news_sentiment": news_sent,

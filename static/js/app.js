@@ -113,84 +113,91 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 
-/** Big plain-language BUY / SELL / WAIT card */
+/** Big plain-language BUY / SELL / WAIT card — prefers backend coach object */
 function renderSimpleAction(data, decimals) {
   const card = document.getElementById("action-card");
   if (!card) return;
 
-  const signal = (data.signal || "WAIT").toUpperCase();
-  const conf = Number(data.confidence || 0);
+  const coach = data.coach;
   const plan = data.trade_plan || {};
-  const status = plan.position_status || "NO_POSITION";
   const fmt = (v) => fmtPrice(v, decimals);
-  const name = data.asset_name || ASSET.name || "this pair";
+
+  // Prefer coach; fall back to client-side derivation
+  const signal = (coach?.signal || data.signal || "WAIT").toUpperCase();
+  const conf = Number(coach?.confidence ?? data.confidence ?? 0);
+  const verb = coach?.verb || "WAIT — DO NOT TRADE";
+  const plain = coach?.plain || "No clear setup after full analysis.";
+  const steps = coach?.steps || buildActionSteps(signal, plan, data, fmt);
+  const checked = coach?.checklist || buildChecklist(data);
+  const grade = coach?.grade || {};
+  const session = coach?.session || {};
+  const sizing = coach?.sizing || {};
+  const levels = coach?.levels || {};
 
   card.className = "action-card " + signal.toLowerCase();
-
-  let verb = "WAIT — DO NOT TRADE";
-  let plain = "No clear setup after checking indicators, news, and levels.";
-  if (signal === "BUY") {
-    if (status === "WAITING_FOR_ENTRY") {
-      verb = "GET READY TO BUY";
-      plain = `Bullish bias on ${name}. Wait for price to reach your entry — do not chase.`;
-    } else if (status === "SKIP_POOR_RR") {
-      verb = "BUY BIAS — SKIP FOR NOW";
-      plain = "Direction is up, but risk/reward is too poor. Wait for a better level.";
-    } else if (status === "ENTER_LONG") {
-      verb = "BUY NOW";
-      plain = `Open a BUY on ${name} using the levels below.`;
-    } else {
-      verb = "BUY SETUP";
-      plain = `Bullish setup on ${name}. Follow the steps.`;
-    }
-  } else if (signal === "SELL") {
-    if (status === "WAITING_FOR_ENTRY") {
-      verb = "GET READY TO SELL";
-      plain = `Bearish bias on ${name}. Wait for price to reach your entry — do not chase.`;
-    } else if (status === "SKIP_POOR_RR") {
-      verb = "SELL BIAS — SKIP FOR NOW";
-      plain = "Direction is down, but risk/reward is too poor. Wait for a better level.";
-    } else if (status === "ENTER_SHORT") {
-      verb = "SELL NOW";
-      plain = `Open a SELL on ${name} using the levels below.`;
-    } else {
-      verb = "SELL SETUP";
-      plain = `Bearish setup on ${name}. Follow the steps.`;
-    }
-  }
+  if (grade.letter === "A" || grade.letter === "B") card.classList.add("grade-strong");
+  if (grade.letter === "D" || grade.letter === "F") card.classList.add("grade-weak");
 
   setText("action-verb", verb);
   setText("action-plain", plain);
   setText("action-conf-value", conf ? `${conf.toFixed(0)}%` : "—");
 
-  // Numbered instructions
-  const steps = buildActionSteps(signal, plan, data, fmt);
+  // Grade + session badges
+  const metaEl = document.getElementById("action-meta");
+  if (metaEl) {
+    const gLetter = grade.letter || "—";
+    const gLabel = grade.label || "";
+    const sess = session.name || "—";
+    const sq = session.quality || "";
+    metaEl.innerHTML = `
+      <span class="grade-badge grade-${(gLetter || "x").toLowerCase()}" title="${(grade.reasons || []).join(" · ")}">
+        Grade <strong>${gLetter}</strong> ${gLabel}
+      </span>
+      <span class="session-badge sess-${sq}">${sess}${session.local_hint ? " · " + session.local_hint : ""}</span>
+      ${sizing.lots != null ? `<span class="size-badge">~${sizing.lots} lots</span>` : ""}
+    `;
+  }
+
   const stepsEl = document.getElementById("action-steps");
   if (stepsEl) {
     stepsEl.innerHTML = steps.map((s) => `<li>${s}</li>`).join("");
   }
 
-  // Why (one short paragraph)
-  const whyBits = [];
-  if (data.timeframes_aligned) whyBits.push("1H + 4H aligned");
-  else whyBits.push("1H/4H not aligned");
-  if (data.primary_trend) whyBits.push(`4H trend ${formatTrend(data.primary_trend)}`);
-  if (data.news_sentiment?.overall) whyBits.push(`news ${data.news_sentiment.overall}`);
-  if (data.calendar_risk?.risk_level === "high") whyBits.push("high-impact news ahead");
-  if (data.user_sr?.near_user_support) whyBits.push("at your support");
-  if (data.user_sr?.near_user_resistance) whyBits.push("at your resistance");
-  if (data.signal_source && data.signal_source !== "technical") {
-    whyBits.push(`source: ${data.signal_source.replace(/_/g, " ")}`);
-  }
-  const notes = (data.fundamental_notes || []).slice(0, 2);
-  setText(
-    "action-why",
-    "Why: " + (whyBits.join(" · ") || "full multi-factor scan") +
-      (notes.length ? " · " + notes.join(" · ") : "")
-  );
+  // Pip hints under levels
+  const slPips = levels.sl_pips;
+  const tp1Pips = levels.tp1_pips;
+  const slHint = document.getElementById("tp-sl-hint");
+  const tp1Hint = document.getElementById("tp-tp1-hint");
+  if (slHint) slHint.textContent = slPips != null ? `~${slPips} pips` : "";
+  if (tp1Hint) tp1Hint.textContent = tp1Pips != null ? `~${tp1Pips} pips` : "";
 
-  // Checklist chips
-  const checked = buildChecklist(data);
+  const sizeNote = document.getElementById("action-size-note");
+  if (sizeNote) {
+    sizeNote.textContent = sizing.note || "";
+  }
+
+  // Why
+  const whyBits = [];
+  if (coach?.one_liner) {
+    setText("action-why", coach.one_liner);
+  } else {
+    if (data.timeframes_aligned) whyBits.push("1H + 4H aligned");
+    else whyBits.push("1H/4H not aligned");
+    if (data.primary_trend) whyBits.push(`4H trend ${formatTrend(data.primary_trend)}`);
+    if (data.news_sentiment?.overall) whyBits.push(`news ${data.news_sentiment.overall}`);
+    if (data.calendar_risk?.risk_level === "high") whyBits.push("high-impact news ahead");
+    if (data.user_sr?.near_user_support) whyBits.push("at your support");
+    if (data.user_sr?.near_user_resistance) whyBits.push("at your resistance");
+    setText("action-why", "Why: " + (whyBits.join(" · ") || "full multi-factor scan"));
+  }
+
+  // Grade reasons under why
+  const reasonsEl = document.getElementById("action-grade-reasons");
+  if (reasonsEl) {
+    const rs = grade.reasons || [];
+    reasonsEl.textContent = rs.length ? "Grade factors: " + rs.join(" · ") : "";
+  }
+
   const chipEl = document.getElementById("action-checked");
   if (chipEl) {
     chipEl.innerHTML = checked
@@ -202,6 +209,14 @@ function renderSimpleAction(data, decimals) {
     detailList.innerHTML = checked
       .map((c) => `<li class="${c.ok ? "ok" : ""}">${c.ok ? "✓" : "○"} ${c.label}${c.detail ? ` — ${c.detail}` : ""}</li>`)
       .join("");
+  }
+
+  // Exit banner from coach
+  const exitAlert = document.getElementById("exit-alert");
+  if (exitAlert && coach?.exit_banner) {
+    exitAlert.className =
+      "exit-alert " + (coach.exit_banner.urgency === "immediate" ? "immediate" : "consider");
+    exitAlert.textContent = coach.exit_banner.text;
   }
 
   renderUserLevelsBanner(data);

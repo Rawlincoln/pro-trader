@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ asset.title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=10">
+  <link rel="stylesheet" href="/static/css/style.css?v=11">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 </head>
@@ -33,9 +33,10 @@
     <section id="action-card" class="action-card wait">
       <div class="action-top">
         <div>
-          <p class="action-kicker">After full analysis</p>
+          <p class="action-kicker">Full scan · indicators · news · levels · session</p>
           <h1 id="action-verb" class="action-verb">ANALYSING…</h1>
-          <p id="action-plain" class="action-plain">Checking indicators, news, calendar &amp; your levels…</p>
+          <p id="action-plain" class="action-plain">Checking markets…</p>
+          <div id="action-meta" class="action-meta"></div>
         </div>
         <div class="action-conf">
           <span class="action-conf-label">Confidence</span>
@@ -49,15 +50,23 @@
 
       <div class="action-levels" id="action-levels">
         <div class="al-box entry"><span>Entry</span><strong id="tp-entry">—</strong></div>
-        <div class="al-box sl"><span>Stop loss</span><strong id="tp-sl">—</strong></div>
-        <div class="al-box tp"><span>Take profit 1</span><strong id="tp-tp1">—</strong></div>
+        <div class="al-box sl">
+          <span>Stop loss</span><strong id="tp-sl">—</strong>
+          <em id="tp-sl-hint" class="al-hint"></em>
+        </div>
+        <div class="al-box tp">
+          <span>Take profit 1</span><strong id="tp-tp1">—</strong>
+          <em id="tp-tp1-hint" class="al-hint"></em>
+        </div>
         <div class="al-box tp"><span>Take profit 2</span><strong id="tp-tp2">—</strong></div>
         <div class="al-box tp"><span>Take profit 3</span><strong id="tp-tp3">—</strong></div>
         <div class="al-box rr"><span>Risk : Reward</span><strong id="tp-rr">—</strong></div>
       </div>
+      <p id="action-size-note" class="action-size-note"></p>
 
       <div id="exit-alert" class="exit-alert hidden"></div>
       <p id="action-why" class="action-why"></p>
+      <p id="action-grade-reasons" class="action-grade-reasons"></p>
       <div class="action-checked" id="action-checked"></div>
     </section>
 
@@ -254,6 +263,6 @@
   </script>
   <script src="/static/js/chart-tools.js?v=5"></script>
   <script src="/static/js/trade-alerts.js?v=5"></script>
-  <script src="/static/js/app.js?v=10"></script>
+  <script src="/static/js/app.js?v=11"></script>
 </body>
 </html>
