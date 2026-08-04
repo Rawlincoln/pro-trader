@@ -51,6 +51,7 @@ from data.trade_alerts import (
     test_telegram as test_alert_telegram,
     _safe_config as safe_alert_config,
 )
+from data.user_levels import build_user_sr_snapshot, get_drawings, save_drawings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -97,7 +98,25 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
         news_sent = news_sentiment_summary(news)
         cal_risk = calendar_risk_assessment(calendar)
 
-        full = build_full_analysis(df_1h, df_4h, news_sent, cal_risk, asset_id)
+        # User-drawn 4H/1H levels (from chart tools) drive S/R for trading
+        px_hint = float((quote or {}).get("price") or 0)
+        user_sr = build_user_sr_snapshot(
+            asset_id,
+            px_hint,
+            decimals=asset["decimals"],
+            near_dist=asset["near_level_distance"],
+        )
+        full = build_full_analysis(
+            df_1h, df_4h, news_sent, cal_risk, asset_id, user_sr=user_sr,
+        )
+        # Refresh user_sr with accurate price from analysis if available
+        price_live = full["analysis_1h"]["indicators"].get("price") or px_hint
+        user_sr = build_user_sr_snapshot(
+            asset_id,
+            float(price_live or 0),
+            decimals=asset["decimals"],
+            near_dist=asset["near_level_distance"],
+        )
         news_trading = build_news_trading_snapshot(
             asset_id, news=news, calendar=calendar, quote=quote,
         )
@@ -179,6 +198,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             levels_4h=full["analysis_4h"]["levels"],
             confidence=float(final_conf or 0),
             asset_id=asset_id,
+            user_sr=user_sr,
         )
         exit_check = check_exit_conditions(
             float(price or 0), trade_plan, full["analysis_1h"]["indicators"]
@@ -206,6 +226,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "analysis_4h": _serialize_analysis(full["analysis_4h"], final_signal),
             "trade_plan": trade_plan,
             "exit_check": exit_check,
+            "user_sr": user_sr,
             "news": news,
             "news_sentiment": news_sent,
             "calendar": calendar,
@@ -528,6 +549,32 @@ def _myfxbook_request_payload() -> dict:
         "password": data.get("password") or request.args.get("password") or None,
         "account_id": data.get("account_id") or request.args.get("account_id"),
     }
+
+
+@app.route("/api/user-levels/<asset_id>", methods=["GET"])
+def api_user_levels_get(asset_id: str):
+    """Return saved chart drawings used as S/R for trading."""
+    if asset_id not in ASSETS:
+        return jsonify({"error": "unknown asset"}), 404
+    return jsonify(get_drawings(asset_id))
+
+
+@app.route("/api/user-levels/<asset_id>", methods=["POST"])
+def api_user_levels_save(asset_id: str):
+    """Save chart drawings (H-lines, zones, trend lines) for S/R trading."""
+    if asset_id not in ASSETS:
+        return jsonify({"error": "unknown asset"}), 404
+    body = request.get_json(silent=True) or {}
+    saved = save_drawings(
+        asset_id,
+        chart_1h=body.get("chart-1h"),
+        chart_4h=body.get("chart-4h"),
+        drawings=body.get("drawings"),
+    )
+    # Invalidate analysis cache so next poll uses new levels
+    with _cache_lock:
+        _cache.pop(asset_id, None)
+    return jsonify({"ok": True, "message": "Levels saved — used for entries & stops", **saved})
 
 
 @app.route("/api/myfxbook/config")

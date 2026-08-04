@@ -60,6 +60,14 @@ document.getElementById("refresh-btn").addEventListener("click", async () => {
   }
 });
 
+// After drawing S/R on the chart, re-run analysis so trade plan uses new levels
+document.addEventListener("user-levels-saved", () => {
+  fetch(`/api/refresh/${ASSET.id}`)
+    .then(r => r.json())
+    .then(data => { if (!data.error) renderDashboard(data); })
+    .catch(() => {});
+});
+
 function fmtPrice(v, decimals) {
   if (v == null) return "—";
   return Number(v).toFixed(decimals ?? ASSET.decimals);
@@ -127,11 +135,22 @@ function renderSignal(data) {
   if (plan.position_status) summary += `Plan: ${plan.position_status}. `;
   if (plan.risk_reward != null) summary += `R:R ${plan.risk_reward}. `;
 
+  const usr = data.user_sr || {};
+  if (usr.has_drawings) {
+    summary += ` Your levels: ${usr.count_4h || 0} on 4H`;
+    if (usr.near_user_support) summary += " · AT SUPPORT";
+    if (usr.near_user_resistance) summary += " · AT RESISTANCE";
+    summary += ". ";
+  } else if (ASSET.id === "eurusd") {
+    summary += " Draw H-lines/zones on 4H — they drive entries & stops. ";
+  }
+
   const vol = data.analysis_1h?.indicators;
   if (vol?.volume_ratio) summary += `Volume ${vol.volume_ratio}x avg. `;
   if (data.fundamental_notes?.length) summary += data.fundamental_notes.slice(0, 4).join(" · ");
 
   document.getElementById("signal-summary").textContent = summary;
+  renderUserLevelsBanner(data);
   document.getElementById("combined-score").textContent = data.adjusted_score ?? data.combined_score ?? "—";
   document.getElementById("confluence").textContent = data.confluence != null ? data.confluence + "/9" : "—";
   document.getElementById("trend-4h").textContent = formatTrend(data.primary_trend);
@@ -465,10 +484,12 @@ function renderAnalysis(containerId, analysis, decimals) {
 
   html += '<div class="levels-section">';
   if (levels.nearest_support) {
-    html += `<div class="level-row">Support: <strong>${fmt(levels.nearest_support)}</strong> <span class="strength-badge">${levels.support_strength || ""}</span></div>`;
+    const src = levels.support_source === "user_drawing" ? " · YOUR DRAWING" : "";
+    html += `<div class="level-row">Support: <strong>${fmt(levels.nearest_support)}</strong> <span class="strength-badge">${levels.support_strength || ""}${src}</span></div>`;
   }
   if (levels.nearest_resistance) {
-    html += `<div class="level-row">Resistance: <strong>${fmt(levels.nearest_resistance)}</strong> <span class="strength-badge">${levels.resistance_strength || ""}</span></div>`;
+    const src = levels.resistance_source === "user_drawing" ? " · YOUR DRAWING" : "";
+    html += `<div class="level-row">Resistance: <strong>${fmt(levels.nearest_resistance)}</strong> <span class="strength-badge">${levels.resistance_strength || ""}${src}</span></div>`;
   }
   if (levels.fibonacci?.fib_382) {
     html += `<div class="level-row">Fib 38.2%: ${fmt(levels.fibonacci.fib_382)} · 61.8%: ${fmt(levels.fibonacci.fib_618)}</div>`;
@@ -479,6 +500,34 @@ function renderAnalysis(containerId, analysis, decimals) {
   html += `<div class="level-row">Position: ${levels.price_position || "—"}</div></div>`;
 
   document.getElementById(containerId).innerHTML = html;
+}
+
+function renderUserLevelsBanner(data) {
+  const el = document.getElementById("user-levels-banner");
+  if (!el) return;
+  const usr = data.user_sr || {};
+  const plan = data.trade_plan || {};
+  if (!usr.has_drawings) {
+    el.className = "user-levels-banner tip";
+    el.innerHTML = ASSET.id === "eurusd"
+      ? "<strong>4H S/R trading:</strong> Draw horizontal lines or zones on the <em>4H chart</em> (H / Zone tools). "
+        + "EUR/USD entries, stops, and targets will follow those levels."
+      : "<strong>Your levels:</strong> Draw H-lines or zones on 4H — they override auto S/R for entries &amp; stops.";
+    return;
+  }
+  const parts = [];
+  parts.push(`<strong>Your levels live</strong> — ${usr.count_4h || 0} on 4H, ${usr.count_1h || 0} on 1H`);
+  if (usr.nearest_support != null) {
+    parts.push(`Support <strong>${fmtPrice(usr.nearest_support)}</strong>${usr.near_user_support ? " · AT LEVEL" : ""}`);
+  }
+  if (usr.nearest_resistance != null) {
+    parts.push(`Resistance <strong>${fmtPrice(usr.nearest_resistance)}</strong>${usr.near_user_resistance ? " · AT LEVEL" : ""}`);
+  }
+  if (plan.level_source?.support === "user_drawing" || plan.level_source?.resistance === "user_drawing") {
+    parts.push("Trade plan using your drawings");
+  }
+  el.className = "user-levels-banner active" + (usr.near_user_support || usr.near_user_resistance ? " at-level" : "");
+  el.innerHTML = parts.join(" · ");
 }
 
 function renderNews(news) {

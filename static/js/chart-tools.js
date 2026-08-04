@@ -41,9 +41,71 @@ const ChartTools = (() => {
     }
   }
 
+  let syncTimer = null;
+
   function saveDrawings(chartId) {
     try {
       localStorage.setItem(storageKey(chartId), JSON.stringify(state.drawings[chartId] || []));
+    } catch (_) {}
+    scheduleServerSync();
+  }
+
+  function scheduleServerSync() {
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncDrawingsToServer, 400);
+  }
+
+  async function syncDrawingsToServer() {
+    const assetId = (window.ASSET && window.ASSET.id) || "eurusd";
+    CHART_IDS.forEach(loadDrawings);
+    const payload = {
+      "chart-1h": state.drawings["chart-1h"] || [],
+      "chart-4h": state.drawings["chart-4h"] || [],
+    };
+    try {
+      const res = await fetch(`/api/user-levels/${assetId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        window.__userLevelsSavedAt = data.updated_at;
+        document.dispatchEvent(new CustomEvent("user-levels-saved", { detail: data }));
+      }
+    } catch (_) {
+      /* offline / local-only still works via localStorage */
+    }
+  }
+
+  async function loadDrawingsFromServer() {
+    const assetId = (window.ASSET && window.ASSET.id) || "eurusd";
+    try {
+      const res = await fetch(`/api/user-levels/${assetId}`);
+      const data = await res.json();
+      if (!data) return;
+      let changed = false;
+      for (const chartId of CHART_IDS) {
+        const serverList = data[chartId];
+        if (!Array.isArray(serverList)) continue;
+        loadDrawings(chartId);
+        const local = state.drawings[chartId] || [];
+        // Prefer whichever has more drawings; if server has data and local empty, use server
+        if (serverList.length && (!local.length || serverList.length >= local.length)) {
+          state.drawings[chartId] = serverList;
+          try {
+            localStorage.setItem(storageKey(chartId), JSON.stringify(serverList));
+          } catch (_) {}
+          changed = true;
+        } else if (local.length && !serverList.length) {
+          // Migrate browser drawings → server once
+          changed = true;
+        }
+      }
+      if (changed) {
+        scheduleServerSync();
+        CHART_IDS.forEach(requestRerender);
+      }
     } catch (_) {}
   }
 
@@ -409,6 +471,7 @@ const ChartTools = (() => {
     state.onRerender = onRerender;
     CHART_IDS.forEach(initToolbar);
     initFullscreenToolbar();
+    loadDrawingsFromServer();
 
     document.querySelectorAll(".chart-toolbar[data-chart]").forEach(tb => {
       if (!tb.id || tb.id !== "chart-fullscreen-toolbar") {
@@ -445,5 +508,7 @@ const ChartTools = (() => {
     closeFullscreen,
     isFullscreen,
     getMode,
+    syncDrawingsToServer,
+    loadDrawingsFromServer,
   };
 })();

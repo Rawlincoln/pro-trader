@@ -8,5 +8,6 @@ trade_alerts_state.json
 trade_alerts_config.json
 trade_ledger.json
 config.json
+user_levels.json
 .venv/
 venv/

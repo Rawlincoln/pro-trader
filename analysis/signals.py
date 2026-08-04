@@ -16,6 +16,29 @@ def _fmt(value: float, decimals: int) -> str:
     return f"{value:.{decimals}f}"
 
 
+def _pick_nearest_levels(
+    levels_1h: dict,
+    levels_4h: dict,
+    user_sr: dict | None,
+) -> tuple[float | None, float | None, str, str]:
+    """Prefer user-drawn 4H levels, then merged levels_4h/1h."""
+    user_sr = user_sr or {}
+    if user_sr.get("has_drawings"):
+        ns = user_sr.get("nearest_support")
+        nr = user_sr.get("nearest_resistance")
+        if ns is not None or nr is not None:
+            return (
+                float(ns) if ns is not None else levels_4h.get("nearest_support") or levels_1h.get("nearest_support"),
+                float(nr) if nr is not None else levels_4h.get("nearest_resistance") or levels_1h.get("nearest_resistance"),
+                "user_drawing" if ns is not None else (levels_4h.get("support_source") or "auto"),
+                "user_drawing" if nr is not None else (levels_4h.get("resistance_source") or "auto"),
+            )
+    # Prefer 4H auto over 1H for structural S/R (user said 4H matters most)
+    ns = levels_4h.get("nearest_support") or levels_1h.get("nearest_support")
+    nr = levels_4h.get("nearest_resistance") or levels_1h.get("nearest_resistance")
+    return ns, nr, levels_4h.get("support_source") or "auto", levels_4h.get("resistance_source") or "auto"
+
+
 def generate_trade_plan(
     signal: str,
     price: float,
@@ -24,6 +47,7 @@ def generate_trade_plan(
     levels_4h: dict,
     confidence: float,
     asset_id: str = "eurusd",
+    user_sr: dict | None = None,
 ) -> dict[str, Any]:
     asset = get_asset(asset_id)
     decimals = asset["decimals"]
@@ -31,11 +55,15 @@ def generate_trade_plan(
     near_dist = asset["near_level_distance"]
     buffer = asset["level_buffer"]
     name = asset["name"]
+    # User-drawn levels get a slightly wider "at level" window
+    user_near = near_dist * 1.35
 
     atr = atr or min_sl
-    nearest_support = levels_1h.get("nearest_support") or levels_4h.get("nearest_support")
-    nearest_resistance = levels_1h.get("nearest_resistance") or levels_4h.get("nearest_resistance")
+    nearest_support, nearest_resistance, support_src, resistance_src = _pick_nearest_levels(
+        levels_1h, levels_4h, user_sr
+    )
     pivots = levels_1h.get("pivots", {})
+    user_sr = user_sr or {}
 
     plan: dict[str, Any] = {
         "action": signal,
@@ -51,6 +79,11 @@ def generate_trade_plan(
         "exit_trigger": None,
         "position_status": "NO_POSITION",
         "instructions": [],
+        "level_source": {
+            "support": support_src,
+            "resistance": resistance_src,
+        },
+        "user_levels_active": bool(user_sr.get("has_drawings")),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -58,54 +91,98 @@ def generate_trade_plan(
         plan["instructions"] = [
             "No high-probability setup — stay flat",
             "Wait for 1H and 4H timeframe alignment",
-            "Prefer setups near support (longs) or resistance (shorts)",
+            "Prefer bounces at your drawn 4H support / rejections at drawn 4H resistance",
         ]
         if nearest_support:
-            plan["instructions"].append(f"Watch support at {_fmt(nearest_support, decimals)} for bounce")
+            tag = " (your drawing)" if support_src == "user_drawing" else ""
+            plan["instructions"].append(
+                f"Watch support at {_fmt(nearest_support, decimals)}{tag} for bounce"
+            )
         if nearest_resistance:
-            plan["instructions"].append(f"Watch resistance at {_fmt(nearest_resistance, decimals)} for rejection")
+            tag = " (your drawing)" if resistance_src == "user_drawing" else ""
+            plan["instructions"].append(
+                f"Watch resistance at {_fmt(nearest_resistance, decimals)}{tag} for rejection"
+            )
+        if not user_sr.get("has_drawings"):
+            plan["instructions"].append(
+                "Tip: draw H-lines / zones on the 4H chart — they drive entries & stops"
+            )
         return plan
 
-    # Tighter risk: 1.2–1.5 ATR SL; R:R targets 1.5 / 2.5 / 3.5
+    # Tighter risk: 1.2 ATR SL default; user-level SL just beyond the line
     sl_distance = max(atr * 1.2, min_sl)
     tp1_distance = sl_distance * 1.5
     tp2_distance = sl_distance * 2.5
     tp3_distance = sl_distance * 3.5
     high_conf = confidence >= 70
     near_level = False
+    level_tag_s = " [your 4H/S/R]" if support_src == "user_drawing" else ""
+    level_tag_r = " [your 4H/S/R]" if resistance_src == "user_drawing" else ""
+    active_near = user_near if (support_src == "user_drawing" or resistance_src == "user_drawing") else near_dist
 
     if signal == "BUY":
         entry = price
-        if nearest_support and price - nearest_support < near_dist:
-            entry = nearest_support + buffer
+        at_user_sup = (
+            nearest_support is not None
+            and support_src == "user_drawing"
+            and 0 <= price - float(nearest_support) <= active_near
+        )
+        at_any_sup = nearest_support is not None and price - float(nearest_support) < near_dist
+
+        if at_user_sup or at_any_sup:
+            entry = float(nearest_support) + buffer
             near_level = True
             plan["entry_trigger"] = (
                 f"Enter on bullish rejection above {_fmt(nearest_support, decimals)}"
+                f"{level_tag_s}"
             )
-            position_status = "WAITING_FOR_ENTRY" if price - entry > near_dist * 0.25 else "ENTER_LONG"
+            position_status = (
+                "WAITING_FOR_ENTRY" if price - entry > active_near * 0.25 else "ENTER_LONG"
+            )
+        elif nearest_support is not None and support_src == "user_drawing":
+            # Structural edge: always wait for pullback to user 4H support on BUY
+            entry = float(nearest_support) + buffer
+            near_level = False
+            plan["entry_trigger"] = (
+                f"Wait for pullback to your drawn support {_fmt(nearest_support, decimals)} "
+                f"— EUR/USD respects these 4H levels"
+            )
+            position_status = "WAITING_FOR_ENTRY"
         elif high_conf:
             plan["entry_trigger"] = (
                 f"High-confidence BUY — market ~{_fmt(price, decimals)} "
-                f"or 1H pullback toward EMA20 / support"
+                f"or pullback to support / your 4H line"
             )
             position_status = "ENTER_LONG"
         else:
-            # Mild signal: prefer pullback, not chase
-            entry = (nearest_support + buffer) if nearest_support else price - atr * 0.35
+            entry = (float(nearest_support) + buffer) if nearest_support else price - atr * 0.35
             plan["entry_trigger"] = (
                 f"Do not chase — wait for pullback toward {_fmt(entry, decimals)} "
                 f"(conf {confidence:.0f}%)"
             )
             position_status = "WAITING_FOR_ENTRY"
 
-        stop_loss = (nearest_support - buffer) if nearest_support else price - sl_distance
-        stop_loss = min(stop_loss, entry - sl_distance)
+        if nearest_support is not None:
+            stop_loss = float(nearest_support) - buffer
+            if support_src == "user_drawing":
+                stop_loss = float(nearest_support) - max(buffer, atr * 0.25)
+        else:
+            stop_loss = price - sl_distance
+        stop_loss = min(stop_loss, entry - sl_distance * 0.5)
 
         tp1 = entry + tp1_distance
-        tp2 = pivots.get("r1") or (entry + tp2_distance)
-        tp3 = pivots.get("r2") or nearest_resistance or (entry + tp3_distance)
-        if nearest_resistance and float(tp2) > nearest_resistance:
-            tp2 = nearest_resistance - buffer
+        # Prefer next user/auto resistance as structural targets
+        tp2 = nearest_resistance or pivots.get("r1") or (entry + tp2_distance)
+        tp3 = pivots.get("r2") or (entry + tp3_distance)
+        if nearest_resistance:
+            # ladder: TP1 mid-way to resistance, TP2 at resistance
+            dist_to_r = float(nearest_resistance) - entry
+            if dist_to_r > sl_distance:
+                tp1 = entry + dist_to_r * 0.5
+                tp2 = float(nearest_resistance) - buffer
+                tp3 = float(nearest_resistance) + dist_to_r * 0.35
+        if nearest_resistance and float(tp2) > float(nearest_resistance):
+            tp2 = float(nearest_resistance) - buffer
 
         risk_units = entry - stop_loss
         plan.update({
@@ -115,48 +192,80 @@ def generate_trade_plan(
             "take_profit_2": _round_price(float(tp2), decimals),
             "take_profit_3": _round_price(float(tp3), decimals),
             "position_status": position_status,
-            "exit_trigger": f"Exit if price closes below {_fmt(stop_loss, decimals)} on 1H",
+            "exit_trigger": (
+                f"Exit if 1H close below {_fmt(stop_loss, decimals)}"
+                f"{' (under your support)' if support_src == 'user_drawing' else ''}"
+            ),
             "instructions": [
                 f"BUY {name} at {_fmt(entry, decimals)} ({position_status})",
-                f"Stop Loss: {_fmt(stop_loss, decimals)} (risk: {_fmt(risk_units, decimals)})",
+                f"Stop Loss: {_fmt(stop_loss, decimals)}{level_tag_s} "
+                f"(risk: {_fmt(risk_units, decimals)})",
                 f"TP1 (50%): {_fmt(tp1, decimals)} — take partial, move SL to BE",
-                f"TP2 (30%): {_fmt(float(tp2), decimals)} — trail stop",
+                f"TP2 (30%): {_fmt(float(tp2), decimals)}{level_tag_r} — trail stop",
                 f"TP3 (20%): {_fmt(float(tp3), decimals)} — final target",
-                "Skip if spread wide or high-impact news in <30m",
+                "Honor your 4H drawn levels — skip if price is mid-range with no level nearby",
             ],
         })
 
     elif signal == "SELL":
         entry = price
-        if nearest_resistance and nearest_resistance - price < near_dist:
-            entry = nearest_resistance - buffer
+        at_user_res = (
+            nearest_resistance is not None
+            and resistance_src == "user_drawing"
+            and 0 <= float(nearest_resistance) - price <= active_near
+        )
+        at_any_res = nearest_resistance is not None and float(nearest_resistance) - price < near_dist
+
+        if at_user_res or at_any_res:
+            entry = float(nearest_resistance) - buffer
             near_level = True
             plan["entry_trigger"] = (
                 f"Enter on bearish rejection below {_fmt(nearest_resistance, decimals)}"
+                f"{level_tag_r}"
             )
-            position_status = "WAITING_FOR_ENTRY" if entry - price > near_dist * 0.25 else "ENTER_SHORT"
+            position_status = (
+                "WAITING_FOR_ENTRY" if entry - price > active_near * 0.25 else "ENTER_SHORT"
+            )
+        elif nearest_resistance is not None and resistance_src == "user_drawing":
+            entry = float(nearest_resistance) - buffer
+            plan["entry_trigger"] = (
+                f"Wait for rally to your drawn resistance {_fmt(nearest_resistance, decimals)} "
+                f"— EUR/USD respects these 4H levels"
+            )
+            position_status = "WAITING_FOR_ENTRY"
         elif high_conf:
             plan["entry_trigger"] = (
                 f"High-confidence SELL — market ~{_fmt(price, decimals)} "
-                f"or 1H rally toward EMA20 / resistance"
+                f"or rally to resistance / your 4H line"
             )
             position_status = "ENTER_SHORT"
         else:
-            entry = (nearest_resistance - buffer) if nearest_resistance else price + atr * 0.35
+            entry = (float(nearest_resistance) - buffer) if nearest_resistance else price + atr * 0.35
             plan["entry_trigger"] = (
                 f"Do not chase — wait for rally toward {_fmt(entry, decimals)} "
                 f"(conf {confidence:.0f}%)"
             )
             position_status = "WAITING_FOR_ENTRY"
 
-        stop_loss = (nearest_resistance + buffer) if nearest_resistance else price + sl_distance
-        stop_loss = max(stop_loss, entry + sl_distance)
+        if nearest_resistance is not None:
+            stop_loss = float(nearest_resistance) + buffer
+            if resistance_src == "user_drawing":
+                stop_loss = float(nearest_resistance) + max(buffer, atr * 0.25)
+        else:
+            stop_loss = price + sl_distance
+        stop_loss = max(stop_loss, entry + sl_distance * 0.5)
 
         tp1 = entry - tp1_distance
-        tp2 = pivots.get("s1") or (entry - tp2_distance)
-        tp3 = pivots.get("s2") or nearest_support or (entry - tp3_distance)
-        if nearest_support and float(tp2) < nearest_support:
-            tp2 = nearest_support + buffer
+        tp2 = nearest_support or pivots.get("s1") or (entry - tp2_distance)
+        tp3 = pivots.get("s2") or (entry - tp3_distance)
+        if nearest_support:
+            dist_to_s = entry - float(nearest_support)
+            if dist_to_s > sl_distance:
+                tp1 = entry - dist_to_s * 0.5
+                tp2 = float(nearest_support) + buffer
+                tp3 = float(nearest_support) - dist_to_s * 0.35
+        if nearest_support and float(tp2) < float(nearest_support):
+            tp2 = float(nearest_support) + buffer
 
         risk_units = stop_loss - entry
         plan.update({
@@ -166,14 +275,18 @@ def generate_trade_plan(
             "take_profit_2": _round_price(float(tp2), decimals),
             "take_profit_3": _round_price(float(tp3), decimals),
             "position_status": position_status,
-            "exit_trigger": f"Exit if price closes above {_fmt(stop_loss, decimals)} on 1H",
+            "exit_trigger": (
+                f"Exit if 1H close above {_fmt(stop_loss, decimals)}"
+                f"{' (above your resistance)' if resistance_src == 'user_drawing' else ''}"
+            ),
             "instructions": [
                 f"SELL {name} at {_fmt(entry, decimals)} ({position_status})",
-                f"Stop Loss: {_fmt(stop_loss, decimals)} (risk: {_fmt(risk_units, decimals)})",
+                f"Stop Loss: {_fmt(stop_loss, decimals)}{level_tag_r} "
+                f"(risk: {_fmt(risk_units, decimals)})",
                 f"TP1 (50%): {_fmt(tp1, decimals)} — take partial, move SL to BE",
-                f"TP2 (30%): {_fmt(float(tp2), decimals)} — trail stop",
+                f"TP2 (30%): {_fmt(float(tp2), decimals)}{level_tag_s} — trail stop",
                 f"TP3 (20%): {_fmt(float(tp3), decimals)} — final target",
-                "Skip if spread wide or high-impact news in <30m",
+                "Honor your 4H drawn levels — skip if price is mid-range with no level nearby",
             ],
         })
 
@@ -190,6 +303,12 @@ def generate_trade_plan(
             )
 
     plan["near_key_level"] = near_level
+    plan["nearest_support"] = (
+        _round_price(float(nearest_support), decimals) if nearest_support is not None else None
+    )
+    plan["nearest_resistance"] = (
+        _round_price(float(nearest_resistance), decimals) if nearest_resistance is not None else None
+    )
     return plan
 
 
@@ -270,16 +389,37 @@ def build_full_analysis(
     news_sentiment: dict,
     calendar_risk: dict,
     asset_id: str = "eurusd",
+    user_sr: dict | None = None,
 ) -> dict[str, Any]:
-    from analysis.strategy import analyze_timeframe, combine_timeframes, apply_fundamental_adjustment
+    from analysis.strategy import (
+        analyze_timeframe,
+        apply_fundamental_adjustment,
+        apply_user_level_boost,
+        combine_timeframes,
+    )
+    from data.user_levels import build_user_sr_snapshot, merge_levels_with_user
 
     asset = get_asset(asset_id)
     analysis_1h = analyze_timeframe(df_1h, "1H", asset)
     analysis_4h = analyze_timeframe(df_4h, "4H", asset)
-    technical = combine_timeframes(analysis_4h, analysis_1h)
-    technical = apply_fundamental_adjustment(technical, news_sentiment, calendar_risk, asset)
 
     price = analysis_1h["indicators"]["price"]
+    if user_sr is None:
+        user_sr = build_user_sr_snapshot(
+            asset_id,
+            float(price or 0),
+            decimals=asset["decimals"],
+            near_dist=asset["near_level_distance"],
+        )
+
+    # Fold user drawings into S/R (4H drawings preferred)
+    analysis_1h["levels"] = merge_levels_with_user(analysis_1h["levels"], user_sr, prefer_user=True)
+    analysis_4h["levels"] = merge_levels_with_user(analysis_4h["levels"], user_sr, prefer_user=True)
+
+    technical = combine_timeframes(analysis_4h, analysis_1h)
+    technical = apply_fundamental_adjustment(technical, news_sentiment, calendar_risk, asset)
+    technical = apply_user_level_boost(technical, user_sr, asset_id=asset_id)
+
     atr_val = analysis_1h["indicators"].get("atr")
 
     trade_plan = generate_trade_plan(
@@ -290,6 +430,7 @@ def build_full_analysis(
         levels_4h=analysis_4h["levels"],
         confidence=technical["confidence"],
         asset_id=asset_id,
+        user_sr=user_sr,
     )
 
     exit_check = check_exit_conditions(price, trade_plan, analysis_1h["indicators"])
@@ -300,4 +441,5 @@ def build_full_analysis(
         "technical": technical,
         "trade_plan": trade_plan,
         "exit_check": exit_check,
+        "user_sr": user_sr,
     }

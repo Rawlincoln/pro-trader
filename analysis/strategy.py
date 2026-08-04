@@ -357,3 +357,83 @@ def apply_fundamental_adjustment(
         "signal": signal,
         "confidence": round(conf, 1),
     }
+
+
+def apply_user_level_boost(
+    technical: dict,
+    user_sr: dict | None,
+    asset_id: str = "eurusd",
+) -> dict:
+    """Boost / gate signals using trader-drawn 4H (and 1H) S/R levels.
+
+    EUR/USD in particular is treated as highly level-respectful: prefer
+    entries only when price is interacting with user-drawn structure.
+    """
+    if not user_sr or not user_sr.get("has_drawings"):
+        return technical
+
+    signal = technical.get("signal", "WAIT")
+    conf = float(technical.get("confidence", 0))
+    notes = list(technical.get("fundamental_notes") or [])
+    near_s = bool(user_sr.get("near_user_support"))
+    near_r = bool(user_sr.get("near_user_resistance"))
+    count_4h = int(user_sr.get("count_4h") or 0)
+
+    notes.append(
+        f"Your drawings active: {count_4h}×4H + {user_sr.get('count_1h', 0)}×1H levels"
+    )
+
+    # Align with structure
+    if signal == "BUY" and near_s:
+        conf = min(97, conf + (10 if asset_id == "eurusd" else 7))
+        notes.append("Price at your drawn support — BUY confluence boosted")
+    elif signal == "SELL" and near_r:
+        conf = min(97, conf + (10 if asset_id == "eurusd" else 7))
+        notes.append("Price at your drawn resistance — SELL confluence boosted")
+    elif signal == "BUY" and near_r:
+        # Buying into resistance — reduce conviction
+        conf = max(30, conf - 12)
+        notes.append("BUY into your drawn resistance — confidence cut; wait for break/retest")
+        if conf < 62:
+            signal = "WAIT"
+            notes.append("Demoted to WAIT — do not long into your resistance")
+    elif signal == "SELL" and near_s:
+        conf = max(30, conf - 12)
+        notes.append("SELL into your drawn support — confidence cut; wait for break/retest")
+        if conf < 62:
+            signal = "WAIT"
+            notes.append("Demoted to WAIT — do not short into your support")
+
+    # EUR/USD: if 4H drawings exist and price is mid-range (not near a user level),
+    # prefer WAIT unless confidence is already very high
+    if asset_id == "eurusd" and count_4h >= 1 and signal in ("BUY", "SELL"):
+        if not near_s and not near_r and conf < 78:
+            notes.append(
+                "EUR/USD mid-range vs your 4H levels — wait for price to tag a drawn line"
+            )
+            signal = "WAIT"
+            conf = max(35, conf - 8)
+
+    # Allow a cautious bounce/rejection signal when technical was WAIT but price
+    # is sitting on a user level with decent 4H bias alignment
+    if signal == "WAIT" and (near_s or near_r):
+        bias = technical.get("entry_timeframe") or technical.get("primary_trend") or ""
+        if near_s and "bull" in str(bias):
+            signal = "BUY"
+            conf = max(conf, 60)
+            notes.append("Bounce setup at your support + bullish 1H bias")
+        elif near_r and "bear" in str(bias):
+            signal = "SELL"
+            conf = max(conf, 60)
+            notes.append("Rejection setup at your resistance + bearish 1H bias")
+
+    if signal in ("BUY", "SELL") and conf < 58:
+        signal = "WAIT"
+
+    return {
+        **technical,
+        "signal": signal,
+        "confidence": round(conf, 1),
+        "fundamental_notes": notes,
+        "user_level_boost": True,
+    }
