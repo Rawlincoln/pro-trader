@@ -14,6 +14,8 @@ EXAMPLE_PATH = ROOT / "config.example.json"
 DEFAULT_CONFIG = {
     "broker": "XM",
     "mt5_path": "",
+    # Desktop MT5 launches a window when initialize() runs — keep off for phone/Myfxbook users
+    "mt5_enabled": False,
     "account_login": 0,
     "account_password": "",
     "investor_password": "",

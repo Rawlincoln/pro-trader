@@ -181,9 +181,28 @@ def build_balance_sheet(
     }
 
 
+def _mt5_enabled(cfg: dict | None = None) -> bool:
+    """Desktop MT5 must be explicitly enabled — initialize() opens the terminal window."""
+    cfg = cfg if cfg is not None else load_config()
+    return bool(cfg.get("mt5_enabled"))
+
+
 def get_mt5_status() -> dict[str, Any]:
-    """Check MT5 availability without persisting connection."""
+    """Check MT5 availability without persisting connection.
+
+    Never auto-launches the terminal unless mt5_enabled is true in config.json.
+    """
     cfg = load_config()
+    if not _mt5_enabled(cfg):
+        return {
+            "connected": False,
+            "message": "Desktop MT5 disabled — using Myfxbook (no terminal window)",
+            "broker": cfg.get("broker", "XM"),
+            "mt5_available": False,
+            "mt5_enabled": False,
+            "setup": _setup_checklist(cfg, mt5_connected=False),
+        }
+
     client = MT5Client(cfg)
     ok, msg = client.connect()
     result: dict[str, Any] = {
@@ -191,6 +210,7 @@ def get_mt5_status() -> dict[str, Any]:
         "message": msg,
         "broker": cfg.get("broker", "XM"),
         "mt5_available": True,
+        "mt5_enabled": True,
         "setup": _setup_checklist(cfg, mt5_connected=ok),
     }
     if ok:
@@ -382,6 +402,17 @@ def get_myfxbook_status(
 def sync_from_mt5(days: int = 365) -> dict[str, Any]:
     """Pull deal history from MT5 and refresh balance sheet."""
     cfg = load_config()
+    if not _mt5_enabled(cfg):
+        return {
+            "ok": False,
+            "error": (
+                "Desktop MT5 is disabled (prevents the terminal window from opening). "
+                "Set \"mt5_enabled\": true in config.json only if you want desktop MT5. "
+                "Phone trades sync via Myfxbook."
+            ),
+            "mt5_enabled": False,
+            "setup": _setup_checklist(cfg, mt5_connected=False),
+        }
     client = MT5Client(cfg)
     ok, msg = client.connect()
     if not ok:
@@ -413,36 +444,44 @@ def sync_from_mt5(days: int = 365) -> dict[str, Any]:
 
 
 def _sync_ledger_auto() -> dict[str, Any]:
-    """Try MT5 first, then Myfxbook cloud — whichever is available."""
+    """Sync ledger without launching MT5 unless explicitly enabled.
+
+    Prefer Myfxbook for phone-only trading (no desktop terminal window).
+    """
     cfg = load_config()
-    client = MT5Client(cfg)
-    ok, _ = client.connect()
-    try:
-        client.disconnect()
-    except Exception:
-        pass
-    if ok:
-        return sync_from_mt5(days=90)
+    # Myfxbook first when configured — never probe MT5 (that opens the window)
     if _myfxbook_configured(cfg):
         return sync_from_myfxbook()
-    return {"ok": False, "error": "No sync source — set up Myfxbook or desktop MT5"}
+    if _mt5_enabled(cfg):
+        return sync_from_mt5(days=90)
+    return {
+        "ok": False,
+        "error": "No sync source — configure Myfxbook, or set mt5_enabled true for desktop MT5",
+    }
 
 
 def get_balance_sheet() -> dict[str, Any]:
-    """Return balance sheet from cached ledger + live MT5 or Myfxbook if connected."""
+    """Return balance sheet from cached ledger + Myfxbook (or MT5 only if enabled)."""
     ledger = _load_ledger()
     cfg = load_config()
-    client = MT5Client(cfg)
-    ok, msg = client.connect()
     account = ledger.get("account_snapshot")
     open_positions: list[dict] = []
+    ok = False
+    msg = "Desktop MT5 disabled — Myfxbook only"
     mfb = get_myfxbook_status()
 
-    if ok:
-        account = client.get_account() or account
-        open_positions = client.get_positions_all()
-        client.disconnect()
-    elif mfb.get("connected") and ledger.get("last_import_source") == "myfxbook":
+    if _mt5_enabled(cfg):
+        client = MT5Client(cfg)
+        ok, msg = client.connect()
+        if ok:
+            account = client.get_account() or account
+            open_positions = client.get_positions_all()
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+
+    if not ok and mfb.get("connected"):
         msg = mfb.get("message", "Myfxbook connected")
         try:
             payload = fetch_ledger_data(
@@ -453,15 +492,17 @@ def get_balance_sheet() -> dict[str, Any]:
             open_positions = payload.get("open_positions", [])
             if payload.get("account_snapshot"):
                 account = payload["account_snapshot"]
-        except MyfxbookError:
-            pass
-    else:
-        msg = msg or mfb.get("message", "Not connected")
+        except MyfxbookError as exc:
+            if not msg or msg.startswith("Desktop"):
+                msg = str(exc)
+    elif not ok and not mfb.get("connected"):
+        msg = mfb.get("message") or msg
 
     sheet = build_balance_sheet(ledger.get("deals", []), account, open_positions)
     return {
         "ok": True,
         "mt5_connected": ok,
+        "mt5_enabled": _mt5_enabled(cfg),
         "mt5_message": msg,
         "myfxbook": mfb,
         "sync_source": "mt5" if ok else ("myfxbook" if mfb.get("connected") else "none"),

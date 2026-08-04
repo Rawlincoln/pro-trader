@@ -1,6 +1,7 @@
 {
   "broker": "XM",
   "mt5_path": "C:\\Program Files\\XM Global MT5\\terminal64.exe",
+  "mt5_enabled": false,
   "account_login": 12345678,
   "account_password": "",
   "investor_password": "YOUR_INVESTOR_READ_ONLY_PASSWORD",
