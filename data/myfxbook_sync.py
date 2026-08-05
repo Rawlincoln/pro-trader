@@ -208,6 +208,27 @@ def _open_trades_to_positions(open_trades: list[dict]) -> list[dict]:
     return positions
 
 
+def resolve_account_id(email: str, password: str, account_id: int | str = 0) -> str:
+    """Use provided id, or pick the first Myfxbook account automatically."""
+    if account_id and str(account_id) not in ("0", ""):
+        return str(account_id)
+    accounts = get_accounts(email, password)
+    if not accounts:
+        raise MyfxbookError(
+            "No Myfxbook accounts found — link your XM MT5 account on myfxbook.com first"
+        )
+    picked = accounts[0]
+    aid = str(picked.get("id") or "")
+    if not aid:
+        raise MyfxbookError("Myfxbook account list missing id field")
+    logger.info(
+        "Auto-selected Myfxbook account id=%s name=%s",
+        aid,
+        picked.get("name") or "?",
+    )
+    return aid
+
+
 def fetch_ledger_data(
     email: str,
     password: str,
@@ -215,11 +236,10 @@ def fetch_ledger_data(
 ) -> dict[str, Any]:
     """Pull closed history, open trades, and account snapshot from Myfxbook."""
     if not email or not password:
-        raise MyfxbookError("myfxbook_email and myfxbook_password required in config.json")
-    if not account_id:
-        raise MyfxbookError("myfxbook_account_id required — run /api/myfxbook/accounts to list IDs")
+        from agent.config import myfxbook_credentials_hint
+        raise MyfxbookError(myfxbook_credentials_hint())
 
-    aid = str(account_id)
+    aid = resolve_account_id(email, password, account_id)
 
     history_data = _api_call_session("get-history", email, password, {"id": aid})
     open_data = _api_call_session("get-open-trades", email, password, {"id": aid})
@@ -235,6 +255,7 @@ def fetch_ledger_data(
                 "currency": acc.get("currency") or "USD",
                 "server": acc.get("server"),
                 "name": acc.get("name"),
+                "myfxbook_id": aid,
             }
             break
 
@@ -247,6 +268,7 @@ def fetch_ledger_data(
         "account_snapshot": account_snapshot,
         "history_count": len(history),
         "open_count": len(open_trades),
+        "account_id": aid,
     }
 
 

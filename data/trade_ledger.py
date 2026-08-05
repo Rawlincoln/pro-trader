@@ -224,7 +224,8 @@ def get_mt5_status() -> dict[str, Any]:
 
 
 def _myfxbook_configured(cfg: dict) -> bool:
-    return bool(cfg.get("myfxbook_email") and cfg.get("myfxbook_password") and cfg.get("myfxbook_account_id"))
+    # Account id is optional — we auto-pick the first linked account
+    return bool(cfg.get("myfxbook_email") and cfg.get("myfxbook_password"))
 
 
 def _setup_checklist(cfg: dict, mt5_connected: bool = False, myfxbook_ok: bool = False) -> list[dict]:
@@ -376,26 +377,36 @@ def get_myfxbook_status(
         cfg, email=email, password=password, account_id=account_id
     )
     if not email or not password:
-        from agent.config import CONFIG_PATH
-        hint = (
-            f"Add myfxbook_email and myfxbook_password to {CONFIG_PATH} "
-            "(then restart py app.py), or set MYFXBOOK_EMAIL / MYFXBOOK_PASSWORD env vars"
-        )
+        from agent.config import CONFIG_PATH, myfxbook_credentials_hint
+        hint = myfxbook_credentials_hint()
         return {
             "configured": False,
             "connected": False,
             "message": hint,
+            "error": hint,
             "config_path": str(CONFIG_PATH),
             "config_exists": CONFIG_PATH.exists(),
             "accounts": [],
+            "is_cloud": bool(__import__("os").environ.get("RENDER")),
         }
     result = test_connection(email, password, account_id)
+    # Auto-fill account id if missing
+    accounts = result.get("accounts") or []
+    resolved_id = account_id
+    if (not resolved_id or str(resolved_id) in ("0", "")) and accounts:
+        resolved_id = accounts[0].get("id") or 0
+        try:
+            from agent.config import save_myfxbook_config
+            if email and password and resolved_id:
+                save_myfxbook_config(email, password, resolved_id)
+        except Exception:
+            pass
     return {
         "configured": True,
         "connected": result.get("ok", False),
         "message": result.get("message") or result.get("error", ""),
-        "accounts": result.get("accounts", []),
-        "account_id": account_id,
+        "accounts": accounts,
+        "account_id": resolved_id,
     }
 
 

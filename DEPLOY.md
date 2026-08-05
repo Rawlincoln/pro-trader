@@ -33,17 +33,27 @@ If you previously deleted the service or the name is taken, Render will still cr
 - Build: `pip install -r requirements-cloud.txt`
 - Start: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`
 - Health check path: `/health`
-- Optional env vars (for 24/7 Telegram + Myfxbook on cloud):
+### Myfxbook on Render (required for balance sync)
+
+`config.json` is **not** deployed (gitignored). Set secrets in the Render dashboard:
+
+1. Open **https://dashboard.render.com** → service **pro-trader**
+2. **Environment** → **Add Environment Variable**
 
   | Key | Value |
   |-----|--------|
-  | `TELEGRAM_BOT_TOKEN` | from @BotFather |
-  | `TELEGRAM_CHAT_ID` | your chat id |
+  | `MYFXBOOK_EMAIL` | your Myfxbook login email |
+  | `MYFXBOOK_PASSWORD` | your Myfxbook password |
+  | `MYFXBOOK_ACCOUNT_ID` | optional — e.g. `12098095` (auto-picks first account if omitted) |
+  | `MYFXBOOK_AUTO_SYNC` | `true` |
+  | `TELEGRAM_BOT_TOKEN` | from @BotFather (optional) |
+  | `TELEGRAM_CHAT_ID` | your chat id (optional) |
   | `TELEGRAM_ENABLED` | `true` |
   | `TRADE_ALERTS_ENABLED` | `true` |
-  | `MYFXBOOK_EMAIL` | your Myfxbook email |
-  | `MYFXBOOK_PASSWORD` | your Myfxbook password |
-  | `MYFXBOOK_ACCOUNT_ID` | e.g. `12098095` |
+
+3. **Save Changes** → **Manual Deploy** → **Deploy latest commit**
+
+Until env vars are set, auto-sync will show a setup hint instead of failing silently.
 
 Free tier sleeps after ~15 min idle; first load may take ~30s.  
 `render.yaml` includes a keepalive cron that pings `/health` every 12 minutes.
