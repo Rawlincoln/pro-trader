@@ -1,0 +1,592 @@
+/* ==========================================================================
+   NEUMORPHISM — soft extruded UI (raised / inset dual shadows)
+   Loaded after style.css when body has class "neu"
+   ========================================================================== */
+body.neu {
+  --neu-bg: #e4e9f2;
+  --neu-bg-2: #d8dee9;
+  --neu-text: #2d3748;
+  --neu-muted: #718096;
+  --neu-shadow-dark: #b8c0d0;
+  --neu-shadow-light: #ffffff;
+  --neu-buy: #0d9f6e;
+  --neu-sell: #e53e3e;
+  --neu-wait: #d69e2e;
+  --neu-accent: #5a67d8;
+  --neu-radius: 20px;
+  --neu-radius-sm: 14px;
+  --text: var(--neu-text);
+  --muted: var(--neu-muted);
+  --bg: var(--neu-bg);
+  --card: var(--neu-bg);
+  --border: transparent;
+  --buy: var(--neu-buy);
+  --sell: var(--neu-sell);
+  --wait: var(--neu-wait);
+  --accent: var(--neu-accent);
+  --entry: #0bc5ea;
+  --sl: #fc8181;
+  --tp: #48bb78;
+  font-family: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  color: var(--neu-text);
+  background: linear-gradient(145deg, #eef2f7 0%, var(--neu-bg) 40%, var(--neu-bg-2) 100%);
+  min-height: 100vh;
+}
+
+body.neu .neu-raised {
+  background: var(--neu-bg);
+  border: none !important;
+  border-radius: var(--neu-radius);
+  box-shadow:
+    10px 10px 24px var(--neu-shadow-dark),
+    -10px -10px 24px var(--neu-shadow-light) !important;
+}
+body.neu .neu-inset {
+  background: #e8edf5;
+  border: none !important;
+  border-radius: var(--neu-radius-sm);
+  box-shadow:
+    inset 6px 6px 14px var(--neu-shadow-dark),
+    inset -6px -6px 14px var(--neu-shadow-light) !important;
+}
+body.neu .neu-soft {
+  background: var(--neu-bg);
+  border: none !important;
+  border-radius: var(--neu-radius-sm);
+  box-shadow:
+    6px 6px 14px var(--neu-shadow-dark),
+    -6px -6px 14px var(--neu-shadow-light) !important;
+}
+body.neu .neu-convex {
+  background: linear-gradient(145deg, #eef2f8, #d5dbe6);
+  border: none !important;
+  border-radius: 50%;
+  box-shadow:
+    8px 8px 18px var(--neu-shadow-dark),
+    -8px -8px 18px var(--neu-shadow-light) !important;
+}
+
+body.neu .neu-bar.header {
+  background: var(--neu-bg);
+  border-bottom: none;
+  box-shadow:
+    0 8px 20px rgba(163, 177, 198, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.8);
+  color: var(--neu-text);
+}
+body.neu .brand-soft {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0.45rem;
+  padding: 0.4rem 1rem;
+  border-radius: 12px;
+  background: var(--neu-bg);
+  box-shadow:
+    5px 5px 12px var(--neu-shadow-dark),
+    -5px -5px 12px var(--neu-shadow-light);
+}
+body.neu .brand-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  color: var(--neu-text);
+}
+body.neu .nav-tabs { gap: 0.65rem; }
+body.neu .nav-tab {
+  color: var(--neu-muted);
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 12px;
+  padding: 0.45rem 1.05rem;
+  font-weight: 600;
+  box-shadow:
+    5px 5px 12px var(--neu-shadow-dark),
+    -5px -5px 12px var(--neu-shadow-light);
+  transition: box-shadow 0.15s, color 0.15s;
+}
+body.neu .nav-tab:hover { color: var(--neu-text); }
+body.neu .nav-tab:active,
+body.neu .nav-tab.active {
+  color: var(--neu-accent);
+  background: var(--neu-bg);
+  border: none;
+  box-shadow:
+    inset 4px 4px 10px var(--neu-shadow-dark),
+    inset -4px -4px 10px var(--neu-shadow-light);
+}
+body.neu.asset-gold .nav-tab.active { color: #b7791f; }
+body.neu.asset-bitcoin .nav-tab.active { color: #c05621; }
+
+body.neu .neu-price-well {
+  text-align: right;
+  padding: 0.55rem 1rem;
+  border-radius: 16px;
+  background: var(--neu-bg);
+  box-shadow:
+    inset 5px 5px 12px var(--neu-shadow-dark),
+    inset -5px -5px 12px var(--neu-shadow-light);
+  min-width: 10rem;
+}
+body.neu .lcd-label {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--neu-muted);
+  font-weight: 600;
+}
+body.neu .lcd-digits,
+body.neu .neu-price-well .price {
+  font-family: "JetBrains Mono", ui-monospace, monospace !important;
+  font-size: 1.55rem !important;
+  font-weight: 600;
+  color: var(--neu-text) !important;
+  text-shadow: none;
+}
+body.neu .neu-price-well .change {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+body.neu .change.up { color: var(--neu-buy); }
+body.neu .change.down { color: var(--neu-sell); }
+body.neu .status { color: var(--neu-muted); font-weight: 500; }
+body.neu .status-dot.online {
+  background: var(--neu-buy);
+  box-shadow: 0 0 0 3px rgba(13, 159, 110, 0.2);
+}
+body.neu .status-dot.offline {
+  background: var(--neu-sell);
+  box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.2);
+}
+
+body.neu .action-card {
+  border: none !important;
+  border-radius: 28px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  background: var(--neu-bg);
+  box-shadow:
+    12px 12px 28px var(--neu-shadow-dark),
+    -12px -12px 28px var(--neu-shadow-light) !important;
+}
+body.neu .action-card.buy {
+  box-shadow:
+    12px 12px 28px var(--neu-shadow-dark),
+    -12px -12px 28px var(--neu-shadow-light),
+    0 0 0 3px rgba(13, 159, 110, 0.12) !important;
+}
+body.neu .action-card.sell {
+  box-shadow:
+    12px 12px 28px var(--neu-shadow-dark),
+    -12px -12px 28px var(--neu-shadow-light),
+    0 0 0 3px rgba(229, 62, 62, 0.12) !important;
+}
+body.neu .action-card.wait {
+  box-shadow:
+    12px 12px 28px var(--neu-shadow-dark),
+    -12px -12px 28px var(--neu-shadow-light),
+    0 0 0 3px rgba(214, 158, 46, 0.1) !important;
+}
+body.neu .action-kicker {
+  color: var(--neu-muted);
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+body.neu .action-verb {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--neu-text);
+  text-shadow: none;
+}
+body.neu .action-card.buy .action-verb { color: var(--neu-buy); }
+body.neu .action-card.sell .action-verb { color: var(--neu-sell); }
+body.neu .action-card.wait .action-verb { color: var(--neu-wait); }
+body.neu .action-plain { color: var(--neu-text); opacity: 0.9; }
+
+body.neu .action-conf.neu-convex {
+  min-width: 6.2rem;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+body.neu .action-conf-label {
+  color: var(--neu-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+body.neu .action-conf-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.45rem;
+  font-weight: 600;
+  color: var(--neu-text);
+}
+
+body.neu .grade-badge,
+body.neu .session-badge,
+body.neu .size-badge {
+  border: none;
+  border-radius: 12px;
+  background: var(--neu-bg);
+  color: var(--neu-text);
+  font-weight: 600;
+  box-shadow:
+    4px 4px 10px var(--neu-shadow-dark),
+    -4px -4px 10px var(--neu-shadow-light);
+  text-shadow: none;
+}
+body.neu .grade-badge.grade-a,
+body.neu .grade-badge.grade-b {
+  color: var(--neu-buy);
+}
+body.neu .grade-badge.grade-c { color: var(--neu-wait); }
+body.neu .grade-badge.grade-d,
+body.neu .grade-badge.grade-f { color: var(--neu-sell); }
+body.neu .session-badge.sess-best,
+body.neu .session-badge.sess-high { color: var(--neu-accent); }
+body.neu .size-badge { color: #6b46c1; }
+
+body.neu .steps-well {
+  padding: 1rem 1rem 1rem 0.35rem;
+  margin-bottom: 1.1rem;
+  border-radius: 18px;
+}
+body.neu .steps-well .action-steps {
+  color: var(--neu-text);
+  margin: 0 0 0 1.25rem;
+  font-weight: 500;
+}
+body.neu .steps-well .action-steps li::marker {
+  color: var(--neu-accent);
+  font-weight: 700;
+}
+body.neu .action-card.buy .steps-well .action-steps li::marker { color: var(--neu-buy); }
+body.neu .action-card.sell .steps-well .action-steps li::marker { color: var(--neu-sell); }
+
+body.neu .al-box.neu-soft {
+  padding: 0.85rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+body.neu .al-box span {
+  color: var(--neu-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+body.neu .al-box strong {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: var(--neu-text);
+  text-shadow: none;
+}
+body.neu .al-box.entry strong { color: #0987a0; }
+body.neu .al-box.sl strong { color: var(--neu-sell); }
+body.neu .al-box.tp strong { color: var(--neu-buy); }
+body.neu .al-box.rr strong { color: var(--neu-accent); }
+body.neu .al-hint { color: var(--neu-muted); }
+
+body.neu .action-why,
+body.neu .action-grade-reasons {
+  color: var(--neu-muted);
+  text-shadow: none;
+}
+body.neu .action-size-note { color: #6b46c1; }
+
+body.neu .check-chip {
+  border: none;
+  border-radius: 999px;
+  background: var(--neu-bg);
+  color: var(--neu-muted);
+  font-weight: 600;
+  box-shadow:
+    3px 3px 8px var(--neu-shadow-dark),
+    -3px -3px 8px var(--neu-shadow-light);
+}
+body.neu .check-chip.ok {
+  color: var(--neu-buy);
+  box-shadow:
+    inset 3px 3px 8px var(--neu-shadow-dark),
+    inset -3px -3px 8px var(--neu-shadow-light);
+}
+
+body.neu .card,
+body.neu .simple-more {
+  background: var(--neu-bg);
+  border: none !important;
+  border-radius: var(--neu-radius);
+  color: var(--neu-text);
+  box-shadow:
+    10px 10px 24px var(--neu-shadow-dark),
+    -10px -10px 24px var(--neu-shadow-light) !important;
+}
+body.neu .card h2,
+body.neu .simple-more > summary,
+body.neu .simple-detail-grid h3 {
+  color: var(--neu-muted);
+  text-shadow: none;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+body.neu .user-levels-banner {
+  background: var(--neu-bg);
+  border: none !important;
+  border-radius: 16px;
+  color: var(--neu-text);
+  box-shadow:
+    6px 6px 16px var(--neu-shadow-dark),
+    -6px -6px 16px var(--neu-shadow-light) !important;
+}
+body.neu .user-levels-banner.tip { opacity: 1; border-style: none; }
+body.neu .user-levels-banner.active,
+body.neu .user-levels-banner.at-level {
+  color: var(--neu-buy);
+  box-shadow:
+    inset 5px 5px 12px var(--neu-shadow-dark),
+    inset -5px -5px 12px var(--neu-shadow-light) !important;
+}
+
+body.neu .chart-wrap {
+  padding: 8px;
+  overflow: hidden;
+}
+body.neu .chart-tool-btn {
+  background: var(--neu-bg) !important;
+  color: var(--neu-text) !important;
+  border: none !important;
+  border-radius: 10px !important;
+  font-weight: 600;
+  box-shadow:
+    4px 4px 10px var(--neu-shadow-dark),
+    -4px -4px 10px var(--neu-shadow-light) !important;
+}
+body.neu .chart-tool-btn.active,
+body.neu .chart-tool-btn:active {
+  box-shadow:
+    inset 3px 3px 8px var(--neu-shadow-dark),
+    inset -3px -3px 8px var(--neu-shadow-light) !important;
+  color: var(--neu-accent) !important;
+}
+body.neu .chart-expand-btn {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 10px;
+  color: var(--neu-text);
+  font-weight: 700;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  box-shadow:
+    4px 4px 10px var(--neu-shadow-dark),
+    -4px -4px 10px var(--neu-shadow-light);
+}
+
+body.neu .refresh-btn {
+  min-width: 200px;
+  padding: 0.85rem 1.4rem;
+  font-size: 1rem;
+  background: var(--neu-bg);
+  color: var(--neu-accent);
+  border: none;
+  border-radius: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  box-shadow:
+    8px 8px 18px var(--neu-shadow-dark),
+    -8px -8px 18px var(--neu-shadow-light);
+  text-shadow: none;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+body.neu .refresh-btn:hover {
+  filter: none;
+  color: #434190;
+}
+body.neu .refresh-btn:active {
+  transform: scale(0.98);
+  box-shadow:
+    inset 5px 5px 12px var(--neu-shadow-dark),
+    inset -5px -5px 12px var(--neu-shadow-light);
+}
+body.neu .simple-footer p { color: var(--neu-muted); text-shadow: none; }
+
+body.neu .exit-alert {
+  border: none;
+  border-radius: 14px;
+  font-weight: 600;
+  box-shadow:
+    inset 4px 4px 10px var(--neu-shadow-dark),
+    inset -4px -4px 10px var(--neu-shadow-light);
+}
+body.neu .exit-alert.immediate {
+  background: #fde8e8;
+  color: var(--neu-sell);
+  text-shadow: none;
+}
+body.neu .exit-alert.consider {
+  background: #fef3c7;
+  color: #975a16;
+}
+
+body.neu .simple-more > summary,
+body.neu .simple-alerts-details > summary {
+  color: var(--neu-muted);
+  padding: 0.55rem 0.9rem;
+  border-radius: 14px;
+  background: var(--neu-bg);
+  border: none;
+  box-shadow:
+    5px 5px 12px var(--neu-shadow-dark),
+    -5px -5px 12px var(--neu-shadow-light);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+body.neu .simple-more > summary::-webkit-details-marker { display: none; }
+body.neu .simple-more[open] > summary {
+  color: var(--neu-text);
+  margin-bottom: 0.9rem;
+  box-shadow:
+    inset 4px 4px 10px var(--neu-shadow-dark),
+    inset -4px -4px 10px var(--neu-shadow-light);
+}
+
+body.neu .news-list,
+body.neu .calendar-list,
+body.neu .analysis-content,
+body.neu .simple-list {
+  color: var(--neu-text);
+}
+body.neu .simple-list li.ok { color: var(--neu-buy); }
+body.neu .news-item,
+body.neu .event-item {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.45rem;
+  box-shadow:
+    inset 3px 3px 8px var(--neu-shadow-dark),
+    inset -3px -3px 8px var(--neu-shadow-light);
+  color: var(--neu-text);
+}
+body.neu .news-title a { color: var(--neu-accent); }
+body.neu .news-meta { color: var(--neu-muted); }
+
+body.neu .ta-btn {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 10px;
+  color: var(--neu-text);
+  box-shadow:
+    4px 4px 10px var(--neu-shadow-dark),
+    -4px -4px 10px var(--neu-shadow-light);
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+body.neu .ta-btn.primary { color: var(--neu-accent); }
+body.neu .ta-tg-row input {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 10px;
+  color: var(--neu-text);
+  box-shadow:
+    inset 3px 3px 8px var(--neu-shadow-dark),
+    inset -3px -3px 8px var(--neu-shadow-light);
+  padding: 0.45rem 0.65rem;
+}
+body.neu .trade-alerts-panel { color: var(--neu-text); }
+body.neu .ta-check { color: var(--neu-muted); }
+
+body.neu .chart-fullscreen { background: var(--neu-bg); }
+body.neu .chart-fs-close {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 12px;
+  box-shadow:
+    5px 5px 12px var(--neu-shadow-dark),
+    -5px -5px 12px var(--neu-shadow-light);
+  color: var(--neu-text);
+  font-weight: 700;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+body.neu.balance-page {
+  background: linear-gradient(145deg, #eef2f7 0%, var(--neu-bg) 40%, var(--neu-bg-2) 100%);
+  color: var(--neu-text);
+}
+body.neu.balance-page .header {
+  background: var(--neu-bg);
+  border-bottom: none;
+  box-shadow: 0 8px 20px rgba(163, 177, 198, 0.4);
+}
+body.neu.balance-page .card {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 20px;
+  box-shadow:
+    10px 10px 24px var(--neu-shadow-dark),
+    -10px -10px 24px var(--neu-shadow-light);
+}
+body.neu.balance-page .nav-tab {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 12px;
+  color: var(--neu-muted);
+  box-shadow:
+    5px 5px 12px var(--neu-shadow-dark),
+    -5px -5px 12px var(--neu-shadow-light);
+}
+body.neu.balance-page .nav-tab.active {
+  color: #6b46c1;
+  box-shadow:
+    inset 4px 4px 10px var(--neu-shadow-dark),
+    inset -4px -4px 10px var(--neu-shadow-light);
+}
+body.neu.balance-page .bs-metric {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 14px;
+  box-shadow:
+    5px 5px 12px var(--neu-shadow-dark),
+    -5px -5px 12px var(--neu-shadow-light);
+}
+body.neu.balance-page .refresh-btn {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 12px;
+  color: var(--neu-accent);
+  box-shadow:
+    5px 5px 12px var(--neu-shadow-dark),
+    -5px -5px 12px var(--neu-shadow-light);
+  font-weight: 700;
+}
+body.neu.balance-page .bs-mfb-form input {
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 10px;
+  color: var(--neu-text);
+  box-shadow:
+    inset 3px 3px 8px var(--neu-shadow-dark),
+    inset -3px -3px 8px var(--neu-shadow-light);
+}
+body.neu.balance-page .bs-hero-pnl.up { color: var(--neu-buy); }
+body.neu.balance-page .bs-hero-pnl.down { color: var(--neu-sell); }
+body.neu.balance-page .subtitle { color: var(--neu-muted); }
+
+@media (max-width: 600px) {
+  body.neu .action-conf.neu-convex {
+    min-width: 5rem;
+    border-radius: 18px;
+    aspect-ratio: auto;
+  }
+  body.neu .lcd-digits,
+  body.neu .neu-price-well .price { font-size: 1.25rem !important; }
+}

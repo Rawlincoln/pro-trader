@@ -4,20 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ asset.title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=12">
+  <link rel="stylesheet" href="/static/css/style.css?v=13">
+  <link rel="stylesheet" href="/static/css/neu-theme.css?v=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 </head>
-<body class="asset-{{ asset.id }} simple-ui skeuo">
-  <div class="desk-texture" aria-hidden="true"></div>
-  <header class="header simple-header skeuo-bezel">
+<body class="asset-{{ asset.id }} simple-ui neu">
+  <header class="header simple-header neu-bar">
     <div class="header-left">
-      <div class="brand-plate">
-        <span class="brand-screw"></span>
-        <span class="brand-name">PRO TRADER</span>
-        <span class="brand-screw"></span>
+      <div class="brand-soft">
+        <span class="brand-name">Pro Trader</span>
       </div>
       <nav class="nav-tabs">
         {% for a in assets %}
@@ -27,8 +25,8 @@
       </nav>
     </div>
     <div class="header-right simple-price">
-      <div class="lcd-panel">
-        <span class="lcd-label">LIVE</span>
+      <div class="neu-price-well">
+        <span class="lcd-label">Live price</span>
         <span id="live-price" class="price lcd-digits">—</span>
         <span id="price-change" class="change">—</span>
       </div>
@@ -40,44 +38,39 @@
   </header>
 
   <main class="dashboard simple-dashboard">
-    <!-- PRIMARY: clear action -->
-    <section id="action-card" class="action-card wait skeuo-console">
-      <div class="console-rivets" aria-hidden="true">
-        <i></i><i></i><i></i><i></i>
-      </div>
+    <section id="action-card" class="action-card wait neu-raised">
       <div class="action-top">
         <div>
-          <p class="action-kicker">Signal console · full market scan</p>
+          <p class="action-kicker">Full scan · indicators · news · levels · session</p>
           <h1 id="action-verb" class="action-verb">ANALYSING…</h1>
           <p id="action-plain" class="action-plain">Checking markets…</p>
           <div id="action-meta" class="action-meta"></div>
         </div>
-        <div class="action-conf skeuo-gauge">
+        <div class="action-conf neu-convex">
           <span class="action-conf-label">Confidence</span>
           <span id="action-conf-value" class="action-conf-value">—</span>
-          <span class="gauge-ring" aria-hidden="true"></span>
         </div>
       </div>
 
-      <div class="steps-well">
+      <div class="steps-well neu-inset">
         <ol id="action-steps" class="action-steps">
           <li>Loading…</li>
         </ol>
       </div>
 
       <div class="action-levels" id="action-levels">
-        <div class="al-box entry skeuo-meter"><span>Entry</span><strong id="tp-entry">—</strong></div>
-        <div class="al-box sl skeuo-meter">
+        <div class="al-box entry neu-soft"><span>Entry</span><strong id="tp-entry">—</strong></div>
+        <div class="al-box sl neu-soft">
           <span>Stop loss</span><strong id="tp-sl">—</strong>
           <em id="tp-sl-hint" class="al-hint"></em>
         </div>
-        <div class="al-box tp skeuo-meter">
+        <div class="al-box tp neu-soft">
           <span>Take profit 1</span><strong id="tp-tp1">—</strong>
           <em id="tp-tp1-hint" class="al-hint"></em>
         </div>
-        <div class="al-box tp skeuo-meter"><span>Take profit 2</span><strong id="tp-tp2">—</strong></div>
-        <div class="al-box tp skeuo-meter"><span>Take profit 3</span><strong id="tp-tp3">—</strong></div>
-        <div class="al-box rr skeuo-meter"><span>Risk : Reward</span><strong id="tp-rr">—</strong></div>
+        <div class="al-box tp neu-soft"><span>Take profit 2</span><strong id="tp-tp2">—</strong></div>
+        <div class="al-box tp neu-soft"><span>Take profit 3</span><strong id="tp-tp3">—</strong></div>
+        <div class="al-box rr neu-soft"><span>Risk : Reward</span><strong id="tp-rr">—</strong></div>
       </div>
       <p id="action-size-note" class="action-size-note"></p>
 
@@ -87,38 +80,37 @@
       <div class="action-checked" id="action-checked"></div>
     </section>
 
-    <div id="user-levels-banner" class="user-levels-banner tip">
+    <div id="user-levels-banner" class="user-levels-banner tip neu-soft">
       Draw support/resistance on the 4H chart (H or Zone tools) — trades use those levels.
     </div>
 
-    <!-- 4H chart first (what you trade against) -->
-    <section class="card chart-card simple-chart">
+    <section class="card chart-card simple-chart neu-raised">
       <div class="chart-card-header">
         <h2>4H Chart — draw your S/R here</h2>
         <button type="button" class="chart-expand-btn" data-chart="chart-4h" title="Fullscreen">⛶</button>
         <div class="chart-toolbar" data-chart="chart-4h"></div>
         <div id="pattern-legend-4h" class="pattern-legend"></div>
       </div>
-      <div class="chart-wrap">
+      <div class="chart-wrap neu-inset">
         <div id="chart-hint-4h" class="chart-draw-hint hidden"></div>
         <div id="chart-4h" class="chart"></div>
       </div>
     </section>
 
-    <details class="card simple-more">
+    <details class="card simple-more neu-raised">
       <summary>1H chart</summary>
       <div class="chart-card-header">
         <button type="button" class="chart-expand-btn" data-chart="chart-1h">⛶</button>
         <div class="chart-toolbar" data-chart="chart-1h"></div>
         <div id="pattern-legend-1h" class="pattern-legend"></div>
       </div>
-      <div class="chart-wrap">
+      <div class="chart-wrap neu-inset">
         <div id="chart-hint-1h" class="chart-draw-hint hidden"></div>
         <div id="chart-1h" class="chart"></div>
       </div>
     </details>
 
-    <details class="card simple-more" id="details-panel">
+    <details class="card simple-more neu-raised" id="details-panel">
       <summary>More details (indicators · news · alerts)</summary>
 
       <div class="simple-detail-grid">
@@ -167,7 +159,6 @@
         </div>
       </div>
 
-      <!-- Keep IDs for existing JS (hidden chrome) -->
       <div class="hidden-legacy">
         <div id="signal-panel" class="signal-panel">
           <div id="signal-badge" class="signal-badge wait">WAIT</div>
@@ -264,7 +255,7 @@
   </div>
 
   <footer class="footer simple-footer">
-    <button id="refresh-btn" class="refresh-btn">Refresh analysis</button>
+    <button id="refresh-btn" class="refresh-btn neu-btn">Refresh analysis</button>
     <p>Educational only · Not financial advice · Trading is risky</p>
   </footer>
 
@@ -280,6 +271,6 @@
   </script>
   <script src="/static/js/chart-tools.js?v=5"></script>
   <script src="/static/js/trade-alerts.js?v=5"></script>
-  <script src="/static/js/app.js?v=12"></script>
+  <script src="/static/js/app.js?v=13"></script>
 </body>
 </html>
