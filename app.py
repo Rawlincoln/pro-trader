@@ -53,6 +53,14 @@ from data.trade_alerts import (
     _safe_config as safe_alert_config,
 )
 from data.user_levels import build_user_sr_snapshot, get_drawings, save_drawings
+from data.signal_audit import (
+    apply_accuracy_to_analysis,
+    build_daily_audit,
+    evaluate_open_signals,
+    get_audit_status,
+    maybe_log_signal,
+    run_daily_audit_cycle,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -288,7 +296,39 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
                 risk_percent=risk_pct,
             )
 
-        return {
+        # Accuracy feedback loop: scale conf / demote weak sources from journal history
+        final_signal, final_conf, acc_notes = apply_accuracy_to_analysis(
+            final_signal, float(final_conf or 0), signal_source or "technical",
+        )
+        if acc_notes:
+            fundamental_notes.extend(acc_notes)
+            if final_signal == "WAIT" and trade_plan.get("action") in ("BUY", "SELL"):
+                trade_plan = generate_trade_plan(
+                    signal="WAIT",
+                    price=float(price or 0),
+                    atr=atr_val,
+                    levels_1h=full["analysis_1h"]["levels"],
+                    levels_4h=full["analysis_4h"]["levels"],
+                    confidence=float(final_conf or 0),
+                    asset_id=asset_id,
+                    user_sr=user_sr,
+                )
+                coach = build_coach_card(
+                    asset_id=asset_id,
+                    signal="WAIT",
+                    confidence=float(final_conf or 0),
+                    trade_plan=trade_plan,
+                    exit_check=exit_check,
+                    technical=tech_for_coach,
+                    calendar_risk=cal_risk,
+                    user_sr=user_sr,
+                    news_sentiment=news_sent,
+                    signal_source=signal_source,
+                    equity=equity,
+                    risk_percent=risk_pct,
+                )
+
+        result = {
             "asset_id": asset_id,
             "asset_name": asset["name"],
             "quote": quote,
@@ -336,6 +376,12 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "chart_tick_format": asset["chart_tick_format"],
             "updated_at": time.time(),
         }
+        # Journal actionable signals for daily accuracy audit + learning
+        try:
+            maybe_log_signal(result)
+        except Exception as audit_exc:
+            logger.debug("Signal audit log skip: %s", audit_exc)
+        return result
     except Exception as exc:
         logger.exception("Analysis failed for %s: %s", asset_id, exc)
         return {"asset_id": asset_id, "error": str(exc), "updated_at": time.time()}
@@ -519,11 +565,43 @@ def background_price_watch():
                     if alerts:
                         dispatch_alerts(alerts, config)
                         _emit_trade_alerts(alerts)
+                    # Score open signal-audit journal entries against live price
+                    try:
+                        evaluate_open_signals(prices={asset_id: live_price})
+                    except Exception as exc:
+                        logger.debug("Signal audit eval %s: %s", asset_id, exc)
                 except Exception as exc:
                     logger.debug("Price watch %s: %s", asset_id, exc)
         except Exception as exc:
             logger.error("Price watch error: %s", exc)
         _bg_sleep(PRICE_WATCH_INTERVAL)
+
+
+def background_signal_audit():
+    """Re-score journal, and send daily accuracy audit on Telegram after 18:00 UTC."""
+    while True:
+        try:
+            prices: dict[str, float] = {}
+            for asset_id in ASSETS:
+                entry = _get_cache_entry(asset_id)
+                data = entry.get("data") or {}
+                q = data.get("quote") or {}
+                p = q.get("price")
+                if p:
+                    prices[asset_id] = float(p)
+                else:
+                    try:
+                        quote = fetch_live_quote(asset_id)
+                        if quote.get("price"):
+                            prices[asset_id] = float(quote["price"])
+                    except Exception:
+                        pass
+            if prices:
+                evaluate_open_signals(prices=prices)
+            run_daily_audit_cycle(force=False, send_telegram=True)
+        except Exception as exc:
+            logger.error("Signal audit background error: %s", exc)
+        _bg_sleep(300 if IS_CLOUD else 180)
 
 
 def prewarm_cache():
@@ -554,9 +632,10 @@ def start_background_tasks() -> None:
     _spawn_background(background_refresh)
     _spawn_background(background_news_monitor)
     _spawn_background(background_price_watch)
+    _spawn_background(background_signal_audit)
     # Always keep Myfxbook ledger fresh (phone trades) while app is running
     _spawn_background(background_ledger_sync)
-    logger.info("Background tasks started (cloud=%s, myfxbook auto-sync on)", IS_CLOUD)
+    logger.info("Background tasks started (cloud=%s, myfxbook auto-sync + signal audit on)", IS_CLOUD)
 
 
 def _render_dashboard(asset_id: str):
@@ -579,12 +658,62 @@ def _lazy_start_workers():
 def health():
     start_background_tasks()
     status = get_alerts_status(scanner_running=_bg_started)
+    audit = get_audit_status()
     return jsonify({
         "status": "ok",
         "service": "pro-trader",
         "cloud": IS_CLOUD,
         "trade_alerts": status,
         "telegram_24_7": bool(status.get("server_push_ready")),
+        "signal_audit": {
+            "total_logged": audit.get("total_logged"),
+            "open": audit.get("open"),
+            "win_rate": audit.get("overall_win_rate"),
+            "calibration_ready": (audit.get("calibration") or {}).get("ready"),
+        },
+    })
+
+
+@app.route("/api/signal-audit")
+def api_signal_audit():
+    return jsonify(get_audit_status())
+
+
+@app.route("/api/signal-audit/daily")
+def api_signal_audit_daily():
+    day = request.args.get("date")
+    if day:
+        try:
+            from datetime import date as date_cls
+            y, m, d = (int(x) for x in day.split("-"))
+            audit = build_daily_audit(date_cls(y, m, d))
+        except (ValueError, TypeError):
+            audit = build_daily_audit()
+    else:
+        audit = build_daily_audit()
+    return jsonify(audit)
+
+
+@app.route("/api/signal-audit/run", methods=["POST"])
+def api_signal_audit_run():
+    """Force evaluate opens + rebuild daily audit; optional Telegram."""
+    body = request.get_json(silent=True) or {}
+    send_tg = body.get("telegram", True)
+    prices: dict[str, float] = {}
+    for asset_id in ASSETS:
+        entry = _get_cache_entry(asset_id)
+        data = entry.get("data") or {}
+        p = (data.get("quote") or {}).get("price")
+        if p:
+            prices[asset_id] = float(p)
+    closed = evaluate_open_signals(prices=prices) if prices else []
+    audit = run_daily_audit_cycle(force=True, send_telegram=bool(send_tg))
+    return jsonify({
+        "ok": True,
+        "closed_now": len(closed),
+        "telegram_sent": audit.get("telegram_sent"),
+        "audit": audit,
+        "status": get_audit_status(),
     })
 
 

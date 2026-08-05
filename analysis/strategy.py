@@ -128,11 +128,33 @@ def analyze_timeframe(df: pd.DataFrame, label: str, asset: dict | None = None) -
 
     sr_score = score_levels(levels, preliminary_bias if preliminary_bias != "neutral" else "bullish")
 
+    # Learned component weights from signal-audit outcomes (default 1.0)
+    try:
+        from data.signal_audit import get_component_weights
+        _w = get_component_weights()
+    except Exception:
+        _w = {}
+
+    def _wcomp(name: str, raw: float) -> float:
+        try:
+            return float(raw) * float(_w.get(name, 1.0))
+        except (TypeError, ValueError):
+            return float(raw or 0)
+
     total = (
-        trend_score + rsi_score + macd_score + stoch_score +
-        cci_score + wr_score + mfi_score + adx_score +
-        ichimoku_score + ema_cross_score + pattern_score +
-        vol_score + sr_score
+        _wcomp("trend", trend_score)
+        + _wcomp("rsi", rsi_score)
+        + _wcomp("macd", macd_score)
+        + _wcomp("stochastic", stoch_score)
+        + _wcomp("cci", cci_score)
+        + _wcomp("williams_r", wr_score)
+        + _wcomp("mfi", mfi_score)
+        + _wcomp("adx", adx_score)
+        + _wcomp("ichimoku", ichimoku_score)
+        + _wcomp("ema_cross", ema_cross_score)
+        + _wcomp("patterns", pattern_score)
+        + _wcomp("volume", vol_score)
+        + _wcomp("support_resistance", sr_score)
     )
 
     if total >= 6:

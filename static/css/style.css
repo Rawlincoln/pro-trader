@@ -933,6 +933,98 @@ body.chart-fs-open { overflow: hidden; }
   color: var(--text);
   font-size: 0.9rem;
 }
+/* Signal accuracy audit */
+.signal-audit-panel {
+  padding: 0.75rem 0.25rem 0.5rem;
+}
+.sa-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+.sa-kpis {
+  display: flex;
+  gap: 0.75rem;
+}
+.sa-kpi {
+  min-width: 4.5rem;
+  text-align: center;
+  padding: 0.45rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(139, 92, 246, 0.12);
+}
+.sa-kpi-val {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text, #e2e8f0);
+}
+.sa-kpi-lbl {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sa-calib {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 0.65rem;
+}
+.sa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+.sa-run-status { font-size: 0.8rem; color: var(--muted); }
+.sa-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+@media (max-width: 700px) {
+  .sa-columns { grid-template-columns: 1fr; }
+}
+.sa-col-title {
+  font-size: 0.85rem;
+  margin: 0 0 0.4rem;
+  color: var(--muted);
+}
+.sa-col-title.ok { color: var(--buy, #22c55e); }
+.sa-col-title.bad { color: var(--sell, #ef4444); }
+.sa-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.sa-item {
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.35);
+  border-left: 3px solid transparent;
+  font-size: 0.82rem;
+}
+.sa-item.ok { border-left-color: var(--buy, #22c55e); }
+.sa-item.bad { border-left-color: var(--sell, #ef4444); }
+.sa-item.open { border-left-color: #a78bfa; }
+.sa-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+.sa-st { font-weight: 700; font-size: 0.72rem; letter-spacing: 0.04em; }
+.sa-item.ok .sa-st { color: var(--buy, #22c55e); }
+.sa-item.bad .sa-st { color: var(--sell, #ef4444); }
+.sa-asset { font-weight: 600; }
+.sa-meta, .sa-item-sub { color: var(--muted); font-size: 0.75rem; }
+.sa-learn {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .bs-mfb-badge {
   font-size: 0.78rem;
   font-weight: 500;

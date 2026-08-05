@@ -361,6 +361,15 @@ def detect_trade_alerts(
 
     min_sig = float(config.get("min_confidence_signal", 72))
     min_entry = float(config.get("min_confidence_entry", 70))
+    # Raise bar when recent signal accuracy is weak
+    try:
+        from data.signal_audit import get_confidence_calibration
+        cal = get_confidence_calibration()
+        if cal.get("ready") and cal.get("min_conf_boost"):
+            min_sig += float(cal["min_conf_boost"])
+            min_entry += float(cal["min_conf_boost"]) * 0.5
+    except Exception:
+        pass
     cd_sig = int(config.get("cooldown_signal_sec", 3600))
     cd_entry = int(config.get("cooldown_entry_sec", 14400))
     grade_ok, grade = _grade_ok(analysis, config)

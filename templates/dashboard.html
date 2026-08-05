@@ -202,6 +202,42 @@
         {% endif %}
       </div>
 
+      <details class="simple-alerts-details" id="signal-audit-details" open>
+        <summary>Signal accuracy audit (daily)</summary>
+        <section class="signal-audit-panel" id="signal-audit-panel">
+          <div class="sa-header">
+            <div>
+              <h2>Which signals were right?</h2>
+              <p class="trade-alerts-sub">Logged setups are scored vs TP1/SL. Wins/losses feed learning weights so predictions improve over time. Daily Telegram after 18:00 UTC.</p>
+            </div>
+            <div class="sa-kpis" id="sa-kpis">
+              <div class="sa-kpi"><span class="sa-kpi-val" id="sa-winrate">—</span><span class="sa-kpi-lbl">Win rate</span></div>
+              <div class="sa-kpi"><span class="sa-kpi-val" id="sa-closed">—</span><span class="sa-kpi-lbl">Closed</span></div>
+              <div class="sa-kpi"><span class="sa-kpi-val" id="sa-open">—</span><span class="sa-kpi-lbl">Open</span></div>
+            </div>
+          </div>
+          <p class="sa-calib" id="sa-calib">Loading calibration…</p>
+          <div class="sa-actions">
+            <button type="button" class="ta-btn primary" id="sa-run">Run audit now + Telegram</button>
+            <button type="button" class="ta-btn" id="sa-refresh">Refresh</button>
+            <span class="sa-run-status" id="sa-run-status"></span>
+          </div>
+          <div class="sa-columns">
+            <div>
+              <h3 class="sa-col-title ok">Accurate today</h3>
+              <div id="sa-accurate" class="sa-list"><p class="ta-empty">No resolved wins yet</p></div>
+            </div>
+            <div>
+              <h3 class="sa-col-title bad">Missed today</h3>
+              <div id="sa-missed" class="sa-list"><p class="ta-empty">No resolved losses yet</p></div>
+            </div>
+          </div>
+          <h3 class="sa-col-title">Recent journal</h3>
+          <div id="sa-recent" class="sa-list"></div>
+          <p class="sa-learn" id="sa-learn"></p>
+        </section>
+      </details>
+
       <details class="simple-alerts-details">
         <summary>Alert settings (Telegram / browser)</summary>
         <section class="trade-alerts-panel" id="trade-alerts-panel">
@@ -274,6 +310,7 @@
   </script>
   <script src="/static/js/chart-tools.js?v=5"></script>
   <script src="/static/js/trade-alerts.js?v=5"></script>
+  <script src="/static/js/signal-audit.js?v=1"></script>
   <script src="/static/js/app.js?v=16"></script>
 </body>
 </html>
