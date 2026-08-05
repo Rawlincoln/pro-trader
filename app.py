@@ -529,9 +529,9 @@ def start_background_tasks() -> None:
     _spawn_background(background_refresh)
     _spawn_background(background_news_monitor)
     _spawn_background(background_price_watch)
-    if not IS_CLOUD:
-        _spawn_background(background_ledger_sync)
-    logger.info("Background tasks started (cloud=%s)", IS_CLOUD)
+    # Always keep Myfxbook ledger fresh (phone trades) while app is running
+    _spawn_background(background_ledger_sync)
+    logger.info("Background tasks started (cloud=%s, myfxbook auto-sync on)", IS_CLOUD)
 
 
 def _render_dashboard(asset_id: str):
@@ -711,7 +711,35 @@ def api_myfxbook_sync():
 
 @app.route("/api/balance-sheet")
 def api_balance_sheet():
-    return jsonify(get_balance_sheet())
+    """Return balance sheet; kick a background Myfxbook sync if data is stale."""
+    data = get_balance_sheet()
+    cfg = load_agent_config()
+    if cfg.get("myfxbook_auto_sync", True):
+        try:
+            minutes = max(1, int(cfg.get("ledger_sync_minutes", 2)))
+            synced_at = data.get("synced_at")
+            stale = True
+            if synced_at:
+                from datetime import datetime, timezone
+                try:
+                    ts = datetime.fromisoformat(str(synced_at).replace("Z", "+00:00"))
+                    age = (datetime.now(timezone.utc) - ts).total_seconds()
+                    stale = age > minutes * 60
+                except Exception:
+                    stale = True
+            if stale:
+                def _kick():
+                    try:
+                        r = _sync_ledger_auto()
+                        if r.get("ok"):
+                            logger.info("Balance-page stale sync: %s", r.get("message"))
+                    except Exception as exc:
+                        logger.debug("Stale sync kick failed: %s", exc)
+                threading.Thread(target=_kick, daemon=True).start()
+                data["auto_sync_triggered"] = True
+        except Exception:
+            pass
+    return jsonify(data)
 
 
 @app.route("/api/balance-sheet/import", methods=["POST"])
@@ -721,21 +749,34 @@ def api_balance_sheet_import():
 
 
 def background_ledger_sync():
-    """Auto-sync MT5 or Myfxbook every N minutes — picks up phone trades."""
+    """Always auto-sync Myfxbook (phone trades) on a timer while the app runs.
+
+    - Syncs immediately on start
+    - Repeats every ledger_sync_minutes (default 2)
+    - Works local and cloud when Myfxbook credentials are set
+    """
+    # First pass ASAP so balance is fresh after launch
+    first = True
     while True:
         try:
-            if not IS_CLOUD:
-                cfg = load_agent_config()
-                minutes = max(2, int(cfg.get("ledger_sync_minutes", 5)))
+            cfg = load_agent_config()
+            auto = cfg.get("myfxbook_auto_sync", True)
+            minutes = max(1, int(cfg.get("ledger_sync_minutes", 2)))
+            if auto:
                 result = _sync_ledger_auto()
                 if result.get("ok"):
-                    logger.info("Ledger sync: %s", result.get("message"))
-                _bg_sleep(minutes * 60)
+                    logger.info("Auto Myfxbook sync: %s", result.get("message"))
+                elif result.get("error"):
+                    logger.warning("Auto Myfxbook sync: %s", result.get("error"))
             else:
-                _bg_sleep(300)
+                logger.debug("myfxbook_auto_sync is false — skipping")
+            # After first sync, wait full interval; first run had no prior wait
+            if first:
+                first = False
+            _bg_sleep(minutes * 60)
         except Exception as exc:
-            logger.debug("Ledger sync skipped: %s", exc)
-            _bg_sleep(120)
+            logger.warning("Ledger sync error: %s", exc)
+            _bg_sleep(60)
 
 
 @app.route("/api/analysis")

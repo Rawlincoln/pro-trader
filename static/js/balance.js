@@ -254,10 +254,15 @@ async function syncMyfxbook(opts = {}) {
 async function init() {
   await loadMfbConfig();
   await loadBalance();
+  // Always pull latest from Myfxbook when balance page opens
   if (mfbConfigured) await syncMyfxbook({ silent: true });
 }
 
 $("btn-sync-mfb")?.addEventListener("click", () => syncMyfxbook());
 $("btn-save-mfb")?.addEventListener("click", saveMfbConfig);
 init();
-setInterval(loadBalance, 60000);
+// Keep UI fresh: re-load sheet every 30s; full Myfxbook sync every 2 min
+setInterval(loadBalance, 30000);
+setInterval(() => {
+  if (mfbConfigured) syncMyfxbook({ silent: true });
+}, 120000);
