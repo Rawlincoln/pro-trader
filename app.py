@@ -701,19 +701,27 @@ def api_myfxbook_config_save():
     password = data.get("password") or ""
     account_id = data.get("account_id") or 0
     existing = load_agent_config()
+    email = email or (existing.get("myfxbook_email") or "").strip()
     if not email:
-        return jsonify({"ok": False, "error": "email is required"}), 400
+        return jsonify({"ok": False, "error": "email is required on first save only"}), 400
+    # Blank password = keep saved (never force re-entry)
     if not password and not existing.get("myfxbook_password"):
-        return jsonify({"ok": False, "error": "password is required on first save"}), 400
+        return jsonify({"ok": False, "error": "password is required on first save only"}), 400
     save_myfxbook_config(
         email,
         password or existing.get("myfxbook_password", ""),
         account_id or existing.get("myfxbook_account_id") or 0,
     )
+    pub = myfxbook_config_public()
+    msg = (
+        "Locked in — you will not need to re-enter credentials."
+        if pub.get("saved_permanently")
+        else "Saved — auto-sync uses these credentials."
+    )
     return jsonify({
         "ok": True,
-        "message": "Saved permanently — syncs automatically",
-        "config": myfxbook_config_public(),
+        "message": msg,
+        "config": pub,
     })
 
 

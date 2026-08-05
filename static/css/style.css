@@ -933,6 +933,14 @@ body.chart-fs-open { overflow: hidden; }
   color: var(--text);
   font-size: 0.9rem;
 }
+.bs-mfb-badge {
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin-left: 0.35rem;
+  color: var(--muted);
+}
+.bs-mfb-badge.ok { color: var(--buy); }
+.bs-mfb-badge.need { color: var(--sell); }
 .bs-settings { margin-top: 0.5rem; }
 .bs-settings summary {
   cursor: pointer;

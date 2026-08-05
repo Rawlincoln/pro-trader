@@ -123,14 +123,12 @@ def myfxbook_credentials_hint() -> str:
     """Human-readable setup help (local vs Render)."""
     if IS_CLOUD:
         return (
-            "On Render: Dashboard → pro-trader → Environment → add "
-            "MYFXBOOK_EMAIL, MYFXBOOK_PASSWORD, MYFXBOOK_ACCOUNT_ID (e.g. 12098095) "
-            "→ Save → Manual Deploy. "
-            "Or open /balance and use “Myfxbook connection” (lasts until next redeploy)."
+            "Enter email + password once below and click Save — "
+            "or set MYFXBOOK_EMAIL / MYFXBOOK_PASSWORD on Render Environment for permanent cloud storage."
         )
     return (
-        f"Add myfxbook_email and myfxbook_password to {CONFIG_PATH}, "
-        "or set MYFXBOOK_EMAIL / MYFXBOOK_PASSWORD env vars, then restart."
+        f"Save once on the Balance page (writes {CONFIG_PATH}) — "
+        "you will not need to re-enter unless you change the password."
     )
 
 
@@ -140,19 +138,26 @@ def myfxbook_config_public() -> dict:
     email = (cfg.get("myfxbook_email") or "").strip()
     has_password = bool(cfg.get("myfxbook_password"))
     account_id = cfg.get("myfxbook_account_id") or 0
-    from_env = bool(_env("MYFXBOOK_EMAIL") or _env("MYFXBOOK_PASSWORD"))
+    from_env = bool(_env("MYFXBOOK_EMAIL") and _env("MYFXBOOK_PASSWORD"))
+    configured = bool(email and has_password)
+    # Env vars survive deploys on Render; config.json is permanent locally
+    saved_permanently = from_env or (not IS_CLOUD and CONFIG_PATH.exists() and configured)
     return {
         "email": email,
         "has_password": has_password,
         "account_id": account_id,
-        # Email + password enough; account can auto-resolve
-        "configured": bool(email and has_password),
-        "saved_permanently": from_env or (CONFIG_PATH.exists() and email and has_password),
+        "configured": configured,
+        "saved_permanently": saved_permanently,
         "from_env": from_env,
         "is_cloud": IS_CLOUD,
         "config_path": str(CONFIG_PATH),
         "config_exists": CONFIG_PATH.exists(),
-        "hint": myfxbook_credentials_hint() if not (email and has_password) else "",
+        "status_label": (
+            "Connected — credentials locked in (no re-entry needed)"
+            if configured and saved_permanently
+            else ("Configured this session" if configured else "Not configured")
+        ),
+        "hint": "" if configured else myfxbook_credentials_hint(),
     }
 
 

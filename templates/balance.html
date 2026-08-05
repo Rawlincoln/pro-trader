@@ -71,15 +71,18 @@
     </section>
 
     <details class="card bs-settings" id="bs-settings">
-      <summary>Myfxbook connection</summary>
-      <p class="bs-settings-note">Saved permanently on this PC — auto-syncs every 5 min. Leave password blank to keep the saved one.</p>
-      <div class="bs-mfb-form">
+      <summary>Myfxbook connection <span id="mfb-summary-badge" class="bs-mfb-badge"></span></summary>
+      <p class="bs-settings-note" id="mfb-settings-note">
+        Enter once → Save. Credentials are remembered; leave password blank to keep the saved one. Auto-sync runs in the background.
+      </p>
+      <div class="bs-mfb-form" id="mfb-form">
         <label>Email <input type="email" id="mfb-email" autocomplete="username" /></label>
         <label>Password <input type="password" id="mfb-password" placeholder="Leave blank if already saved" autocomplete="current-password" /></label>
-        <label>Account ID <input type="text" id="mfb-account-id" /></label>
+        <label>Account ID <input type="text" id="mfb-account-id" placeholder="optional" /></label>
       </div>
       <div class="bs-import-row">
-        <button type="button" class="refresh-btn" id="btn-save-mfb">Save</button>
+        <button type="button" class="refresh-btn" id="btn-save-mfb">Save once</button>
+        <button type="button" class="refresh-btn" id="btn-change-mfb" hidden>Change credentials</button>
         <span id="mfb-settings-status" class="bs-import-status"></span>
       </div>
     </details>
@@ -89,6 +92,6 @@
     <p>Synced from Myfxbook · includes commission &amp; swap</p>
   </footer>
 
-  <script src="/static/js/balance.js?v=9"></script>
+  <script src="/static/js/balance.js?v=10"></script>
 </body>
 </html>

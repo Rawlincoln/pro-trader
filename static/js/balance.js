@@ -148,23 +148,60 @@ function mfbPayload() {
   };
 }
 
+function applyMfbUi(data) {
+  mfbConfigured = !!data.configured;
+  if ($("mfb-email") && data.email) $("mfb-email").value = data.email;
+  if ($("mfb-account-id") && data.account_id) $("mfb-account-id").value = String(data.account_id);
+  if ($("mfb-password")) {
+    $("mfb-password").value = "";
+    $("mfb-password").placeholder = data.has_password
+      ? "Saved — leave blank to keep"
+      : "Myfxbook password (once only)";
+  }
+  const status = $("mfb-settings-status");
+  const badge = $("mfb-summary-badge");
+  const note = $("mfb-settings-note");
+  const form = $("mfb-form");
+  const saveBtn = $("btn-save-mfb");
+  const changeBtn = $("btn-change-mfb");
+  const settings = $("bs-settings");
+
+  if (badge) {
+    badge.textContent = data.configured
+      ? (data.saved_permanently ? "· locked in" : "· ready")
+      : "· setup needed";
+    badge.className = "bs-mfb-badge " + (data.configured ? "ok" : "need");
+  }
+  if (status && data.configured) {
+    status.textContent = data.status_label || "Credentials saved — no re-entry needed";
+    status.className = "bs-import-status saved";
+  }
+  if (note) {
+    note.textContent = data.configured
+      ? (data.from_env
+        ? "Credentials locked in on the cloud server. Auto-sync runs without you typing them again."
+        : "Credentials saved. Auto-sync runs without re-entry. Only open this if you change your Myfxbook password.")
+      : (data.hint || "Enter once → Save. You will not be asked again.");
+  }
+  // Hide the form when already permanent — user clicks Change to edit
+  if (data.configured && data.saved_permanently) {
+    if (form) form.hidden = true;
+    if (saveBtn) saveBtn.hidden = true;
+    if (changeBtn) changeBtn.hidden = false;
+    if (settings) settings.removeAttribute("open");
+  } else if (!data.configured) {
+    if (form) form.hidden = false;
+    if (saveBtn) saveBtn.hidden = false;
+    if (changeBtn) changeBtn.hidden = true;
+    if (settings) settings.setAttribute("open", "");
+  }
+}
+
 async function loadMfbConfig() {
   try {
     const res = await fetch("/api/myfxbook/config");
     const data = await res.json();
-    mfbConfigured = !!data.configured;
-    if ($("mfb-email") && data.email) $("mfb-email").value = data.email;
-    if ($("mfb-account-id") && data.account_id) $("mfb-account-id").value = String(data.account_id);
-    if ($("mfb-password")) {
-      $("mfb-password").placeholder = data.has_password
-        ? "Saved — leave blank to keep"
-        : "Myfxbook password";
-    }
-    const status = $("mfb-settings-status");
-    if (status && data.saved_permanently) {
-      status.textContent = "Credentials saved permanently";
-      status.className = "bs-import-status saved";
-    }
+    applyMfbUi(data);
   } catch {
     /* ignore */
   }
@@ -193,13 +230,9 @@ async function saveMfbConfig() {
       }
       return false;
     }
-    mfbConfigured = !!data.config?.configured;
-    if ($("mfb-password")) {
-      $("mfb-password").value = "";
-      $("mfb-password").placeholder = "Saved — leave blank to keep";
-    }
+    if (data.config) applyMfbUi(data.config);
     if (status) {
-      status.textContent = data.message || "Saved permanently";
+      status.textContent = data.message || "Saved permanently — no re-entry needed";
       status.className = "bs-import-status saved";
     }
     await syncMyfxbook({ silent: true });
@@ -208,7 +241,7 @@ async function saveMfbConfig() {
     if (status) status.textContent = "Save failed";
     return false;
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Save once"; }
   }
 }
 
@@ -233,11 +266,17 @@ async function syncMyfxbook(opts = {}) {
     if (!data.ok) {
       setSyncStatus(false, data.error || "Sync failed", "myfxbook");
       const status = $("mfb-settings-status");
-      if (status) {
+      // Only force open settings if credentials are missing — not on every transient error
+      const needsSetup = /email|password|credential|not configured|login|wrong/i.test(
+        String(data.error || "")
+      );
+      if (status && needsSetup) {
         status.textContent = data.error || "Sync failed — check connection settings";
         status.className = "bs-import-status error";
       }
-      if (!silent) $("bs-settings")?.setAttribute("open", "");
+      if (!silent && needsSetup && !mfbConfigured) {
+        $("bs-settings")?.setAttribute("open", "");
+      }
       return false;
     }
     setSyncStatus(true, "Synced", "myfxbook");
@@ -260,6 +299,15 @@ async function init() {
 
 $("btn-sync-mfb")?.addEventListener("click", () => syncMyfxbook());
 $("btn-save-mfb")?.addEventListener("click", saveMfbConfig);
+$("btn-change-mfb")?.addEventListener("click", () => {
+  const form = $("mfb-form");
+  const saveBtn = $("btn-save-mfb");
+  if (form) form.hidden = false;
+  if (saveBtn) saveBtn.hidden = false;
+  $("btn-change-mfb").hidden = true;
+  $("bs-settings")?.setAttribute("open", "");
+  if ($("mfb-password")) $("mfb-password").focus();
+});
 init();
 // Keep UI fresh: re-load sheet every 30s; full Myfxbook sync every 2 min
 setInterval(loadBalance, 30000);
