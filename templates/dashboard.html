@@ -4,13 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ asset.title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=11">
+  <link rel="stylesheet" href="/static/css/style.css?v=12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 </head>
-<body class="asset-{{ asset.id }} simple-ui">
-  <header class="header simple-header">
+<body class="asset-{{ asset.id }} simple-ui skeuo">
+  <div class="desk-texture" aria-hidden="true"></div>
+  <header class="header simple-header skeuo-bezel">
     <div class="header-left">
+      <div class="brand-plate">
+        <span class="brand-screw"></span>
+        <span class="brand-name">PRO TRADER</span>
+        <span class="brand-screw"></span>
+      </div>
       <nav class="nav-tabs">
         {% for a in assets %}
         <a href="{{ a.route }}" class="nav-tab{% if a.id == active_asset %} active{% endif %}">{{ a.name }}</a>
@@ -19,8 +27,11 @@
       </nav>
     </div>
     <div class="header-right simple-price">
-      <span id="live-price" class="price">—</span>
-      <span id="price-change" class="change">—</span>
+      <div class="lcd-panel">
+        <span class="lcd-label">LIVE</span>
+        <span id="live-price" class="price lcd-digits">—</span>
+        <span id="price-change" class="change">—</span>
+      </div>
       <span class="status">
         <span id="connection-status" class="status-dot offline"></span>
         <span id="last-update">…</span>
@@ -30,37 +41,43 @@
 
   <main class="dashboard simple-dashboard">
     <!-- PRIMARY: clear action -->
-    <section id="action-card" class="action-card wait">
+    <section id="action-card" class="action-card wait skeuo-console">
+      <div class="console-rivets" aria-hidden="true">
+        <i></i><i></i><i></i><i></i>
+      </div>
       <div class="action-top">
         <div>
-          <p class="action-kicker">Full scan · indicators · news · levels · session</p>
+          <p class="action-kicker">Signal console · full market scan</p>
           <h1 id="action-verb" class="action-verb">ANALYSING…</h1>
           <p id="action-plain" class="action-plain">Checking markets…</p>
           <div id="action-meta" class="action-meta"></div>
         </div>
-        <div class="action-conf">
+        <div class="action-conf skeuo-gauge">
           <span class="action-conf-label">Confidence</span>
           <span id="action-conf-value" class="action-conf-value">—</span>
+          <span class="gauge-ring" aria-hidden="true"></span>
         </div>
       </div>
 
-      <ol id="action-steps" class="action-steps">
-        <li>Loading…</li>
-      </ol>
+      <div class="steps-well">
+        <ol id="action-steps" class="action-steps">
+          <li>Loading…</li>
+        </ol>
+      </div>
 
       <div class="action-levels" id="action-levels">
-        <div class="al-box entry"><span>Entry</span><strong id="tp-entry">—</strong></div>
-        <div class="al-box sl">
+        <div class="al-box entry skeuo-meter"><span>Entry</span><strong id="tp-entry">—</strong></div>
+        <div class="al-box sl skeuo-meter">
           <span>Stop loss</span><strong id="tp-sl">—</strong>
           <em id="tp-sl-hint" class="al-hint"></em>
         </div>
-        <div class="al-box tp">
+        <div class="al-box tp skeuo-meter">
           <span>Take profit 1</span><strong id="tp-tp1">—</strong>
           <em id="tp-tp1-hint" class="al-hint"></em>
         </div>
-        <div class="al-box tp"><span>Take profit 2</span><strong id="tp-tp2">—</strong></div>
-        <div class="al-box tp"><span>Take profit 3</span><strong id="tp-tp3">—</strong></div>
-        <div class="al-box rr"><span>Risk : Reward</span><strong id="tp-rr">—</strong></div>
+        <div class="al-box tp skeuo-meter"><span>Take profit 2</span><strong id="tp-tp2">—</strong></div>
+        <div class="al-box tp skeuo-meter"><span>Take profit 3</span><strong id="tp-tp3">—</strong></div>
+        <div class="al-box rr skeuo-meter"><span>Risk : Reward</span><strong id="tp-rr">—</strong></div>
       </div>
       <p id="action-size-note" class="action-size-note"></p>
 
@@ -263,6 +280,6 @@
   </script>
   <script src="/static/js/chart-tools.js?v=5"></script>
   <script src="/static/js/trade-alerts.js?v=5"></script>
-  <script src="/static/js/app.js?v=11"></script>
+  <script src="/static/js/app.js?v=12"></script>
 </body>
 </html>
