@@ -33,15 +33,26 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "telegram_enabled": False,
     "telegram_bot_token": "",
     "telegram_chat_id": "",
-    "min_confidence_signal": 62,
-    "min_confidence_entry": 60,
+    # Precision mode: fewer, higher-quality alerts
+    "precision_mode": True,
+    "min_confidence_signal": 72,
+    "min_confidence_entry": 70,
+    "min_grade": "B",  # only A/B coach grades (A > B > C > D > F)
+    "require_aligned": True,
+    "require_enter_status": True,  # ENTRY only when plan is ENTER_LONG/SHORT
     "alert_buy": True,
     "alert_sell": True,
     "alert_entry": True,
     "alert_exit": True,
-    "alert_exit_partial": True,
+    "alert_exit_partial": False,  # less noise — only hard exits by default
+    "alert_news": True,
+    "cooldown_signal_sec": 3600,
+    "cooldown_entry_sec": 14400,
+    "cooldown_exit_sec": 1800,
     "symbols": {aid: True for aid in ASSETS},
 }
+
+_GRADE_RANK = {"A": 5, "B": 4, "C": 3, "D": 2, "F": 1, "—": 0, "-": 0, "": 0}
 
 _store_lock = threading.Lock()
 
@@ -53,17 +64,30 @@ def _env_truthy(name: str, default: bool = True) -> bool:
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
 
 
+def _strip_env(val: str) -> str:
+    v = (val or "").strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
+        v = v[1:-1].strip()
+    return v
+
+
 def _merge_env_config(cfg: dict[str, Any]) -> dict[str, Any]:
     env_locked: dict[str, bool] = {}
-    if os.environ.get("TELEGRAM_BOT_TOKEN"):
-        cfg["telegram_bot_token"] = os.environ["TELEGRAM_BOT_TOKEN"].strip()
+    token_env = _strip_env(os.environ.get("TELEGRAM_BOT_TOKEN", ""))
+    chat_env = _strip_env(os.environ.get("TELEGRAM_CHAT_ID", ""))
+    if token_env:
+        cfg["telegram_bot_token"] = token_env
         env_locked["telegram_token"] = True
-    if os.environ.get("TELEGRAM_CHAT_ID"):
-        cfg["telegram_chat_id"] = os.environ["TELEGRAM_CHAT_ID"].strip()
+    if chat_env:
+        cfg["telegram_chat_id"] = chat_env
         env_locked["telegram_chat"] = True
     if env_locked:
         cfg["telegram_enabled"] = _env_truthy("TELEGRAM_ENABLED", True)
         cfg["enabled"] = _env_truthy("TRADE_ALERTS_ENABLED", True)
+    if os.environ.get("ALERT_PRECISION_MODE") is not None:
+        cfg["precision_mode"] = _env_truthy("ALERT_PRECISION_MODE", True)
+    if os.environ.get("ALERT_MIN_GRADE"):
+        cfg["min_grade"] = os.environ["ALERT_MIN_GRADE"].strip().upper()[:1] or "B"
     token = (cfg.get("telegram_bot_token") or "").strip()
     chat = str(cfg.get("telegram_chat_id") or "").strip()
     cfg["telegram_configured"] = bool(token and chat)
@@ -72,7 +96,22 @@ def _merge_env_config(cfg: dict[str, Any]) -> dict[str, Any]:
     cfg["server_push_ready"] = bool(
         cfg.get("enabled") and cfg.get("telegram_enabled") and cfg["telegram_configured"]
     )
+    cfg["is_cloud"] = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
     return cfg
+
+
+def _grade_ok(analysis: dict[str, Any], config: dict[str, Any]) -> tuple[bool, str]:
+    """Precision gate using coach grade when present."""
+    if not config.get("precision_mode", True):
+        return True, ""
+    coach = analysis.get("coach") or {}
+    grade = (coach.get("grade") or {}).get("letter") or analysis.get("grade_letter") or ""
+    min_g = str(config.get("min_grade") or "B").upper()[:1]
+    if not grade or grade in ("—", "-"):
+        # No coach grade — fall back to confidence only
+        return True, "no_grade"
+    ok = _GRADE_RANK.get(grade, 0) >= _GRADE_RANK.get(min_g, 4)
+    return ok, grade
 
 
 def load_config() -> dict[str, Any]:
@@ -310,70 +349,125 @@ def detect_trade_alerts(
     exit_check = analysis.get("exit_check") or {}
     quote = analysis.get("quote") or {}
     price = float(quote.get("price") or trade_plan.get("current_price") or 0)
+    coach = analysis.get("coach") or {}
+    grade_letter = (coach.get("grade") or {}).get("letter") or ""
+    session_name = (coach.get("session") or {}).get("name") or ""
+    aligned = bool(analysis.get("timeframes_aligned"))
+    plan_status = trade_plan.get("position_status") or ""
 
     ast = _asset_state(state, asset_id)
     alerts: list[dict[str, Any]] = []
     session = _session_key(signal, trade_plan, decimals)
 
-    min_sig = float(config.get("min_confidence_signal", 58))
-    min_entry = float(config.get("min_confidence_entry", 55))
+    min_sig = float(config.get("min_confidence_signal", 72))
+    min_entry = float(config.get("min_confidence_entry", 70))
+    cd_sig = int(config.get("cooldown_signal_sec", 3600))
+    cd_entry = int(config.get("cooldown_entry_sec", 14400))
+    grade_ok, grade = _grade_ok(analysis, config)
+
+    # Precision: skip weak / misaligned directional alerts
+    precision = config.get("precision_mode", True)
+    require_aligned = config.get("require_aligned", True) if precision else False
+    quality_ok = (
+        confidence >= min_sig
+        and grade_ok
+        and (aligned or not require_aligned)
+        and plan_status not in ("SKIP_POOR_RR",)
+    )
 
     # --- Signal change: BUY / SELL ---
     prev_signal = ast.get("last_signal", "WAIT")
-    if signal != prev_signal:
-        if signal == "BUY" and config.get("alert_buy") and confidence >= min_sig:
+    if signal != prev_signal and quality_ok:
+        if signal == "BUY" and config.get("alert_buy"):
             aid = _alert_id(asset_id, "buy", session)
-            if not _already_fired(state, aid, 1800):
+            if not _already_fired(state, aid, cd_sig):
                 alert = _build_alert(
                     asset_id, "buy", "BUY",
-                    f"{asset['name']} BUY signal — {confidence:.0f}% confidence",
+                    (
+                        f"{asset['name']} BUY · {confidence:.0f}% conf"
+                        f"{f' · Grade {grade}' if grade and grade not in ('—', 'no_grade') else ''}"
+                        f"{f' · {session_name}' if session_name else ''}"
+                    ),
                     urgency="high", confidence=confidence, price=price,
                     trade_plan=trade_plan,
-                    extra={"reason": f"Signal changed {prev_signal} → BUY"},
+                    extra={
+                        "reason": f"Signal {prev_signal} → BUY",
+                        "grade": grade_letter,
+                        "session": session_name,
+                        "plan_status": plan_status,
+                        "aligned": aligned,
+                    },
                 )
                 alert["id"] = aid
                 alerts.append(alert)
 
-        elif signal == "SELL" and config.get("alert_sell") and confidence >= min_sig:
+        elif signal == "SELL" and config.get("alert_sell"):
             aid = _alert_id(asset_id, "sell", session)
-            if not _already_fired(state, aid, 1800):
+            if not _already_fired(state, aid, cd_sig):
                 alert = _build_alert(
                     asset_id, "sell", "SELL",
-                    f"{asset['name']} SELL signal — {confidence:.0f}% confidence",
+                    (
+                        f"{asset['name']} SELL · {confidence:.0f}% conf"
+                        f"{f' · Grade {grade}' if grade and grade not in ('—', 'no_grade') else ''}"
+                        f"{f' · {session_name}' if session_name else ''}"
+                    ),
                     urgency="high", confidence=confidence, price=price,
                     trade_plan=trade_plan,
-                    extra={"reason": f"Signal changed {prev_signal} → SELL"},
+                    extra={
+                        "reason": f"Signal {prev_signal} → SELL",
+                        "grade": grade_letter,
+                        "session": session_name,
+                        "plan_status": plan_status,
+                        "aligned": aligned,
+                    },
                 )
                 alert["id"] = aid
                 alerts.append(alert)
 
-    # --- Entry alert ---
+    # --- Entry alert (precise: only when price is at entry / ENTER status) ---
     if (
         config.get("alert_entry")
         and signal in ("BUY", "SELL")
         and confidence >= min_entry
+        and grade_ok
         and trade_plan.get("entry") is not None
+        and plan_status not in ("SKIP_POOR_RR", "NO_POSITION", "WAITING_FOR_ENTRY")
     ):
         entry = float(trade_plan["entry"])
-        at_entry = _price_near_entry(price, entry, tolerance) or trade_plan.get(
-            "position_status", ""
-        ).startswith("ENTER")
-        # One ENTRY per signal direction until WAIT / flip (plus stable session id)
+        status_enter = plan_status in ("ENTER_LONG", "ENTER_SHORT")
+        at_price = _price_near_entry(price, entry, tolerance)
+        # Precision: require ENTER status (not just "near-ish")
+        if config.get("require_enter_status", True):
+            at_entry = status_enter and at_price
+        else:
+            at_entry = at_price or status_enter
+        if require_aligned and not aligned:
+            at_entry = False
         direction_aid = _alert_id(asset_id, "entry", signal)
         if at_entry and ast.get("session_key") != session:
             aid = _alert_id(asset_id, "entry", session)
-            if not _already_fired(state, direction_aid, 14400) and not _already_fired(
-                state, aid, 7200
+            if not _already_fired(state, direction_aid, cd_entry) and not _already_fired(
+                state, aid, cd_entry
             ):
+                sl = trade_plan.get("stop_loss")
+                tp1 = trade_plan.get("take_profit_1")
+                rr = trade_plan.get("risk_reward")
                 alert = _build_alert(
                     asset_id, "entry", signal,
                     (
-                        f"ENTRY {signal} {asset['name']} @ {_fmt_price(entry, decimals)} "
-                        f"(now {_fmt_price(price, decimals)}) · SL {_fmt_price(trade_plan.get('stop_loss'), decimals)}"
+                        f"ENTRY {signal} {asset['name']} NOW\n"
+                        f"Entry {_fmt_price(entry, decimals)} · now {_fmt_price(price, decimals)}\n"
+                        f"SL {_fmt_price(sl, decimals)} · TP1 {_fmt_price(tp1, decimals)}"
+                        f"{f' · R:R 1:{rr}' if rr else ''}"
                     ),
-                    urgency="high", confidence=confidence, price=price,
+                    urgency="immediate", confidence=confidence, price=price,
                     trade_plan=trade_plan,
-                    extra={"reason": trade_plan.get("entry_trigger") or "Entry zone active"},
+                    extra={
+                        "reason": trade_plan.get("entry_trigger") or "At entry — execute",
+                        "grade": grade_letter,
+                        "session": session_name,
+                        "plan_status": plan_status,
+                    },
                 )
                 alert["id"] = aid
                 alerts.append(alert)
@@ -522,21 +616,34 @@ def detect_price_alerts(
 
 def _format_telegram(alert: dict[str, Any]) -> str:
     asset = alert.get("asset_name", "")
-    typ = alert.get("type", "").upper()
+    typ = (alert.get("type") or "").upper()
+    sig = alert.get("signal") or ""
+    conf = alert.get("confidence")
     lines = [
-        f"🔔 {typ} · {asset}",
+        f"Pro Trader · {typ}" + (f" {sig}" if sig and sig not in typ else ""),
+        f"{asset}",
         alert.get("message", ""),
     ]
-    if alert.get("entry"):
+    if conf is not None:
+        lines.append(f"Confidence: {conf:.0f}%")
+    if alert.get("grade"):
+        lines.append(f"Grade: {alert['grade']}")
+    if alert.get("session"):
+        lines.append(f"Session: {alert['session']}")
+    if alert.get("entry") is not None:
         lines.append(f"Entry: {alert['entry']}")
-    if alert.get("stop_loss"):
-        lines.append(f"SL: {alert['stop_loss']}")
-    if alert.get("take_profit_1"):
+    if alert.get("stop_loss") is not None:
+        lines.append(f"Stop: {alert['stop_loss']}")
+    if alert.get("take_profit_1") is not None:
         lines.append(f"TP1: {alert['take_profit_1']}")
-    if alert.get("price"):
-        lines.append(f"Price: {alert['price']}")
-    lines.append("\nPro Trader")
-    return "\n".join(lines)
+    if alert.get("take_profit_2") is not None:
+        lines.append(f"TP2: {alert['take_profit_2']}")
+    if alert.get("price") is not None:
+        lines.append(f"Live: {alert['price']}")
+    if alert.get("reason"):
+        lines.append(f"Why: {alert['reason']}")
+    lines.append("— precision alerts · 24/7 server")
+    return "\n".join(str(x) for x in lines if x is not None and str(x).strip())
 
 
 def _telegram_post(token: str, method: str, payload: dict) -> tuple[bool, str, Optional[dict]]:
@@ -677,10 +784,13 @@ def test_telegram(config: dict[str, Any] | None = None) -> dict[str, Any]:
             "error": pre_err,
         }
     ok, detail = send_telegram_message(
-        "✅ Pro Trader Telegram alerts are working!\n\n"
-        "You will receive BUY, SELL, ENTRY & EXIT alerts for:\n"
-        "• EUR/USD\n• Gold\n• Bitcoin\n\n"
-        "Alerts run 24/7 on the server — no need to keep the site open.",
+        "Pro Trader Telegram OK\n\n"
+        "Precision alerts (Grade A/B, high confidence):\n"
+        "• BUY / SELL bias changes\n"
+        "• ENTRY when price is at the level\n"
+        "• EXIT on SL / TP hits\n\n"
+        "Symbols: EUR/USD · Gold · Bitcoin\n"
+        "Runs 24/7 on Render — PC can be off.",
         config,
     )
     return {

@@ -208,7 +208,7 @@
           <div class="trade-alerts-header">
             <div>
               <h2>Trade alerts</h2>
-              <p class="trade-alerts-sub">Optional phone push</p>
+              <p class="trade-alerts-sub">Precision only (Grade B+, conf ≥72%, aligned) · 24/7 on Render with PC off</p>
             </div>
             <div class="trade-alerts-status" id="trade-alerts-status">—</div>
           </div>
@@ -224,10 +224,13 @@
             <label class="ta-check"><input type="checkbox" id="taBitcoin" checked /> Bitcoin</label>
           </div>
           <div class="trade-alerts-telegram" id="taTelegramSection">
-            <label class="ta-check"><input type="checkbox" id="taTelegram" /> Telegram</label>
+            <label class="ta-check"><input type="checkbox" id="taTelegram" /> Telegram phone push</label>
             <p class="ta-perm-note" id="taSavedNote" hidden>Saved on this PC</p>
+            <p class="ta-warn" style="opacity:.85;margin:.35rem 0">
+              For 24/7 with PC off: set <code>TELEGRAM_BOT_TOKEN</code> + <code>TELEGRAM_CHAT_ID</code> on Render Environment (see TELEGRAM.md). Local save only works while this PC is on.
+            </p>
             <div class="ta-tg-row">
-              <input type="password" id="taTgToken" placeholder="Bot token" autocomplete="off" />
+              <input type="password" id="taTgToken" placeholder="Bot token from @BotFather" autocomplete="off" />
               <input type="text" id="taTgChat" placeholder="Chat ID" />
               <button type="button" class="ta-btn" id="taDiscover">Find chat ID</button>
             </div>
@@ -235,7 +238,7 @@
             <p class="ta-warn" id="taChatWarn" hidden></p>
             <div class="ta-tg-row">
               <button type="button" class="ta-btn" id="taSave">Save</button>
-              <button type="button" class="ta-btn primary" id="taTest">Test</button>
+              <button type="button" class="ta-btn primary" id="taTest">Test Telegram</button>
             </div>
           </div>
           <div id="trade-alert-banner" class="trade-alert-banner hidden"></div>

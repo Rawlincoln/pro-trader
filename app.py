@@ -457,14 +457,39 @@ def background_refresh():
 
 
 def background_news_monitor():
-    """Fast loop for pre-event and live news alerts."""
+    """Fast loop for pre-event and live news alerts (+ Telegram when configured)."""
     while True:
         try:
             alerts = run_news_monitor()
+            cfg = load_alert_config()
+            precision = cfg.get("precision_mode", True)
             for alert in alerts:
                 asset_id = alert.get("asset_id", DEFAULT_ASSET)
                 socketio.emit("news_alert", alert, room=asset_id)
                 socketio.emit("news_alert", alert, room="all_alerts")
+                # Precision: only high-urgency news to Telegram
+                if not cfg.get("alert_news", True):
+                    continue
+                if precision and alert.get("urgency") not in ("immediate", "high"):
+                    continue
+                conf = float(alert.get("confidence") or 0)
+                if precision and conf < float(cfg.get("min_confidence_signal", 72)):
+                    continue
+                # Map news alert into telegram dispatcher shape
+                tg_alert = {
+                    "type": alert.get("type") or "news",
+                    "signal": alert.get("signal") or "NEWS",
+                    "asset_name": get_asset(asset_id)["name"],
+                    "message": alert.get("message") or alert.get("event") or "",
+                    "confidence": conf,
+                    "price": alert.get("price"),
+                    "reason": alert.get("reason") or "News / calendar",
+                    "urgency": alert.get("urgency"),
+                }
+                try:
+                    dispatch_alerts([tg_alert], cfg)
+                except Exception as exc:
+                    logger.debug("News telegram skip: %s", exc)
         except Exception as exc:
             logger.error("News monitor error: %s", exc)
         _bg_sleep(45 if IS_CLOUD else 30)
@@ -546,18 +571,20 @@ def _render_dashboard(asset_id: str):
 
 @app.before_request
 def _lazy_start_workers():
-    if request.path != "/health":
-        start_background_tasks()
+    # Include /health so Render keepalive wakes scanners 24/7
+    start_background_tasks()
 
 
 @app.route("/health")
 def health():
+    start_background_tasks()
     status = get_alerts_status(scanner_running=_bg_started)
     return jsonify({
         "status": "ok",
         "service": "pro-trader",
         "cloud": IS_CLOUD,
         "trade_alerts": status,
+        "telegram_24_7": bool(status.get("server_push_ready")),
     })
 
 
@@ -833,12 +860,17 @@ def on_connect():
         socketio.start_background_task(_refresh_asset, asset_id, True, False)
 
 
+# Gunicorn (Render) never hits __main__ — start scanners on import after a short delay
+if IS_CLOUD or os.environ.get("PRO_TRADER_BG", "1") == "1":
+    threading.Timer(2.0, start_background_tasks).start()
+
+
 if __name__ == "__main__":
     start_background_tasks()
     print("\n" + "=" * 60)
     print("  Pro Trader Dashboard")
     print(f"  Local:    http://127.0.0.1:{PORT}/")
     print(f"  Network:  http://{HOST}:{PORT}/")
-    print("  EUR/USD · Gold · Bitcoin")
+    print("  EUR/USD · Gold · Bitcoin · Telegram 24/7 on Render")
     print("=" * 60 + "\n")
     socketio.run(app, host=HOST, port=PORT, debug=False)
