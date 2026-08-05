@@ -43,4 +43,4 @@ services:
     plan: free
     schedule: "*/10 * * * *"
     buildCommand: "true"
-    startCommand: python -c "import urllib.request; urllib.request.urlopen('https://pro-trader.onrender.com/health', timeout=90).read(); print('keepalive ok')"
+    startCommand: python -c "import urllib.request; urllib.request.urlopen('https://pro-trader-fjrc.onrender.com/health', timeout=90).read(); print('keepalive ok')"

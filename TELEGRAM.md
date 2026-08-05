@@ -37,7 +37,7 @@ Alerts run on **Render** (cloud), not on your laptop. Keep the site deployed and
 After deploy:
 
 ```text
-https://pro-trader.onrender.com/health
+https://pro-trader-fjrc.onrender.com/health
 ```
 
 Should show `"telegram_24_7": true` and `"server_push_ready": true`.
