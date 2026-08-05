@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ asset.title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=15">
-  <link rel="stylesheet" href="/static/css/glass-theme.css?v=1">
+  <link rel="stylesheet" href="/static/css/style.css?v=16">
+  <link rel="stylesheet" href="/static/css/aurora-theme.css?v=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 </head>
-<body class="asset-{{ asset.id }} simple-ui glass">
-  <header class="header simple-header glass-bar">
+<body class="asset-{{ asset.id }} simple-ui aurora">
+  <header class="header simple-header au-bar">
     <div class="header-left">
       <div class="brand-soft">
         <span class="brand-name">Pro Trader</span>
@@ -25,7 +25,7 @@
       </nav>
     </div>
     <div class="header-right simple-price">
-      <div class="glass-price-well">
+      <div class="au-price-well">
         <span class="lcd-label">Live price</span>
         <span id="live-price" class="price lcd-digits">—</span>
         <span id="price-change" class="change">—</span>
@@ -38,7 +38,7 @@
   </header>
 
   <main class="dashboard simple-dashboard">
-    <section id="action-card" class="action-card wait glass-panel">
+    <section id="action-card" class="action-card wait au-panel">
       <div class="action-top">
         <div>
           <p class="action-kicker">Full scan · indicators · news · levels · session</p>
@@ -46,31 +46,31 @@
           <p id="action-plain" class="action-plain">Checking markets…</p>
           <div id="action-meta" class="action-meta"></div>
         </div>
-        <div class="action-conf glass-orb">
+        <div class="action-conf au-orb">
           <span class="action-conf-label">Confidence</span>
           <span id="action-conf-value" class="action-conf-value">—</span>
         </div>
       </div>
 
-      <div class="steps-well glass-inset">
+      <div class="steps-well au-inset">
         <ol id="action-steps" class="action-steps">
           <li>Loading…</li>
         </ol>
       </div>
 
       <div class="action-levels" id="action-levels">
-        <div class="al-box entry glass-tile"><span>Entry</span><strong id="tp-entry">—</strong></div>
-        <div class="al-box sl glass-tile">
+        <div class="al-box entry au-tile"><span>Entry</span><strong id="tp-entry">—</strong></div>
+        <div class="al-box sl au-tile">
           <span>Stop loss</span><strong id="tp-sl">—</strong>
           <em id="tp-sl-hint" class="al-hint"></em>
         </div>
-        <div class="al-box tp glass-tile">
+        <div class="al-box tp au-tile">
           <span>Take profit 1</span><strong id="tp-tp1">—</strong>
           <em id="tp-tp1-hint" class="al-hint"></em>
         </div>
-        <div class="al-box tp glass-tile"><span>Take profit 2</span><strong id="tp-tp2">—</strong></div>
-        <div class="al-box tp glass-tile"><span>Take profit 3</span><strong id="tp-tp3">—</strong></div>
-        <div class="al-box rr glass-tile"><span>Risk : Reward</span><strong id="tp-rr">—</strong></div>
+        <div class="al-box tp au-tile"><span>Take profit 2</span><strong id="tp-tp2">—</strong></div>
+        <div class="al-box tp au-tile"><span>Take profit 3</span><strong id="tp-tp3">—</strong></div>
+        <div class="al-box rr au-tile"><span>Risk : Reward</span><strong id="tp-rr">—</strong></div>
       </div>
       <p id="action-size-note" class="action-size-note"></p>
 
@@ -80,37 +80,37 @@
       <div class="action-checked" id="action-checked"></div>
     </section>
 
-    <div id="user-levels-banner" class="user-levels-banner tip glass-panel">
+    <div id="user-levels-banner" class="user-levels-banner tip au-panel">
       Draw support/resistance on the 4H chart (H or Zone tools) — trades use those levels.
     </div>
 
-    <section class="card chart-card simple-chart glass-panel">
+    <section class="card chart-card simple-chart au-panel">
       <div class="chart-card-header">
         <h2>4H Chart — draw your S/R here</h2>
         <button type="button" class="chart-expand-btn" data-chart="chart-4h" title="Fullscreen">⛶</button>
         <div class="chart-toolbar" data-chart="chart-4h"></div>
         <div id="pattern-legend-4h" class="pattern-legend"></div>
       </div>
-      <div class="chart-wrap glass-inset">
+      <div class="chart-wrap au-inset">
         <div id="chart-hint-4h" class="chart-draw-hint hidden"></div>
         <div id="chart-4h" class="chart"></div>
       </div>
     </section>
 
-    <details class="card simple-more glass-panel">
+    <details class="card simple-more au-panel">
       <summary>1H chart</summary>
       <div class="chart-card-header">
         <button type="button" class="chart-expand-btn" data-chart="chart-1h">⛶</button>
         <div class="chart-toolbar" data-chart="chart-1h"></div>
         <div id="pattern-legend-1h" class="pattern-legend"></div>
       </div>
-      <div class="chart-wrap glass-inset">
+      <div class="chart-wrap au-inset">
         <div id="chart-hint-1h" class="chart-draw-hint hidden"></div>
         <div id="chart-1h" class="chart"></div>
       </div>
     </details>
 
-    <details class="card simple-more glass-panel" id="details-panel">
+    <details class="card simple-more au-panel" id="details-panel">
       <summary>More details (indicators · news · alerts)</summary>
 
       <div class="simple-detail-grid">
@@ -255,7 +255,7 @@
   </div>
 
   <footer class="footer simple-footer">
-    <button id="refresh-btn" class="refresh-btn glass-btn">Refresh analysis</button>
+    <button id="refresh-btn" class="refresh-btn au-btn">Refresh analysis</button>
     <p>Educational only · Not financial advice · Trading is risky</p>
   </footer>
 
@@ -271,6 +271,6 @@
   </script>
   <script src="/static/js/chart-tools.js?v=5"></script>
   <script src="/static/js/trade-alerts.js?v=5"></script>
-  <script src="/static/js/app.js?v=15"></script>
+  <script src="/static/js/app.js?v=16"></script>
 </body>
 </html>
