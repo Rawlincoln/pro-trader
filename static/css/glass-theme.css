@@ -1,0 +1,767 @@
+/* ==========================================================================
+   iOS LIQUID GLASS MORPHISM
+   Frosted translucent panels, soft blur, specular edges, floating depth
+   Base stays deep — glass is translucent, not solid white
+   ========================================================================== */
+body.glass {
+  --g-bg: #0b0d14;
+  --g-bg-mid: #12151f;
+  --g-glass: rgba(255, 255, 255, 0.06);
+  --g-glass-2: rgba(255, 255, 255, 0.09);
+  --g-glass-3: rgba(255, 255, 255, 0.12);
+  --g-stroke: rgba(255, 255, 255, 0.14);
+  --g-stroke-hi: rgba(255, 255, 255, 0.28);
+  --g-text: rgba(255, 255, 255, 0.92);
+  --g-muted: rgba(255, 255, 255, 0.48);
+  --g-buy: #34d399;
+  --g-sell: #fb7185;
+  --g-wait: #fbbf24;
+  --g-accent: #82aaff;
+  --g-entry: #67e8f9;
+  --g-radius: 24px;
+  --g-radius-sm: 16px;
+  --g-blur: 28px;
+  --g-blur-sm: 18px;
+  --text: var(--g-text);
+  --muted: var(--g-muted);
+  --bg: var(--g-bg);
+  --card: transparent;
+  --border: var(--g-stroke);
+  --buy: var(--g-buy);
+  --sell: var(--g-sell);
+  --wait: var(--g-wait);
+  --accent: var(--g-accent);
+  --entry: var(--g-entry);
+  --sl: #fb7185;
+  --tp: #34d399;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Segoe UI", "DM Sans", system-ui, sans-serif;
+  color: var(--g-text);
+  background: var(--g-bg);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Ambient liquid orbs behind the glass */
+body.glass::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 12% 18%, rgba(99, 102, 241, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 45% at 88% 12%, rgba(56, 189, 248, 0.28) 0%, transparent 50%),
+    radial-gradient(ellipse 55% 50% at 70% 88%, rgba(167, 139, 250, 0.32) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 20% 80%, rgba(52, 211, 153, 0.12) 0%, transparent 50%),
+    linear-gradient(165deg, #0b0d14 0%, #10131c 40%, #0a0c12 100%);
+}
+
+body.glass .header,
+body.glass .dashboard,
+body.glass .footer {
+  position: relative;
+  z-index: 1;
+}
+
+/* Shared glass material */
+body.glass .glass-panel {
+  background: var(--g-glass);
+  backdrop-filter: blur(var(--g-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--g-blur)) saturate(160%);
+  border: 1px solid var(--g-stroke);
+  border-radius: var(--g-radius);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 var(--g-stroke-hi),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+body.glass .glass-inset {
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(var(--g-blur-sm)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--g-blur-sm)) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--g-radius-sm);
+  box-shadow:
+    inset 0 2px 12px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+body.glass .glass-chip {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Floating glass header (iOS toolbar) */
+body.glass .glass-bar.header {
+  background: rgba(18, 20, 30, 0.55);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  color: var(--g-text);
+}
+body.glass .brand-soft {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0.45rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+body.glass .brand-name {
+  font-weight: 650;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  color: var(--g-text);
+}
+body.glass .nav-tabs { gap: 0.5rem; }
+body.glass .nav-tab {
+  color: var(--g-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 0.42rem 1rem;
+  font-weight: 600;
+  font-size: 0.88rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+}
+body.glass .nav-tab:hover {
+  color: var(--g-text);
+  background: rgba(255, 255, 255, 0.1);
+}
+body.glass .nav-tab:active { transform: scale(0.97); }
+body.glass .nav-tab.active {
+  color: #fff;
+  background: rgba(130, 170, 255, 0.22);
+  border-color: rgba(130, 170, 255, 0.4);
+  box-shadow:
+    0 0 20px rgba(130, 170, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+body.glass.asset-gold .nav-tab.active {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fde68a;
+}
+body.glass.asset-bitcoin .nav-tab.active {
+  background: rgba(249, 115, 22, 0.18);
+  border-color: rgba(249, 115, 22, 0.35);
+  color: #fdba74;
+}
+
+/* Liquid glass price capsule */
+body.glass .glass-price-well {
+  text-align: right;
+  padding: 0.5rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 4px 16px rgba(0, 0, 0, 0.25);
+  min-width: 10rem;
+}
+body.glass .lcd-label {
+  display: block;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--g-muted);
+  font-weight: 600;
+}
+body.glass .lcd-digits,
+body.glass .glass-price-well .price {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", monospace !important;
+  font-size: 1.5rem !important;
+  font-weight: 600;
+  color: var(--g-text) !important;
+  text-shadow: 0 0 24px rgba(255, 255, 255, 0.08);
+  letter-spacing: -0.02em;
+}
+body.glass .glass-price-well .change {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+body.glass .change.up { color: var(--g-buy); }
+body.glass .change.down { color: var(--g-sell); }
+body.glass .status { color: var(--g-muted); font-weight: 500; }
+body.glass .status-dot.online {
+  background: var(--g-buy);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25), 0 0 10px rgba(52, 211, 153, 0.5);
+}
+body.glass .status-dot.offline {
+  background: var(--g-sell);
+  box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.25);
+}
+
+/* Primary action — liquid glass card */
+body.glass .action-card {
+  border: 1px solid var(--g-stroke) !important;
+  border-radius: 28px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.04) 45%,
+    rgba(120, 140, 255, 0.06) 100%
+  );
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15) !important;
+  position: relative;
+  overflow: hidden;
+}
+/* Specular sheen */
+body.glass .action-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 40%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    transparent 100%
+  );
+  border-radius: 28px 28px 50% 50%;
+  pointer-events: none;
+}
+body.glass .action-card.buy {
+  border-color: rgba(52, 211, 153, 0.28) !important;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(52, 211, 153, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+}
+body.glass .action-card.sell {
+  border-color: rgba(251, 113, 133, 0.28) !important;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(251, 113, 133, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+}
+body.glass .action-card.wait {
+  border-color: rgba(251, 191, 36, 0.2) !important;
+}
+body.glass .action-kicker {
+  color: var(--g-muted);
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+body.glass .action-verb {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--g-text);
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+}
+body.glass .action-card.buy .action-verb {
+  color: #6ee7b7;
+  text-shadow: 0 0 28px rgba(52, 211, 153, 0.35);
+}
+body.glass .action-card.sell .action-verb {
+  color: #fda4af;
+  text-shadow: 0 0 28px rgba(251, 113, 133, 0.3);
+}
+body.glass .action-card.wait .action-verb {
+  color: #fcd34d;
+  text-shadow: 0 0 24px rgba(251, 191, 36, 0.25);
+}
+body.glass .action-plain {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Confidence glass orb */
+body.glass .action-conf.glass-orb {
+  min-width: 6.2rem;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -4px 12px rgba(0, 0, 0, 0.15);
+}
+body.glass .action-conf-label {
+  color: var(--g-muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+body.glass .action-conf-value {
+  font-family: "JetBrains Mono", "SF Mono", monospace;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--g-text);
+}
+
+/* Glass chips */
+body.glass .grade-badge,
+body.glass .session-badge,
+body.glass .size-badge {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--g-text);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  text-shadow: none;
+}
+body.glass .grade-badge.grade-a,
+body.glass .grade-badge.grade-b {
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.12);
+}
+body.glass .grade-badge.grade-c {
+  color: #fcd34d;
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.1);
+}
+body.glass .grade-badge.grade-d,
+body.glass .grade-badge.grade-f {
+  color: #fda4af;
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(251, 113, 133, 0.1);
+}
+body.glass .session-badge.sess-best,
+body.glass .session-badge.sess-high {
+  color: #a5c4ff;
+  border-color: rgba(130, 170, 255, 0.3);
+}
+body.glass .size-badge {
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.3);
+}
+
+/* Steps — frosted inset */
+body.glass .steps-well {
+  padding: 1rem 1rem 1rem 0.35rem;
+  margin-bottom: 1.1rem;
+  border-radius: 18px;
+}
+body.glass .steps-well .action-steps {
+  color: rgba(255, 255, 255, 0.88);
+  margin: 0 0 0 1.25rem;
+  font-weight: 500;
+}
+body.glass .steps-well .action-steps li::marker {
+  color: var(--g-accent);
+  font-weight: 700;
+}
+body.glass .action-card.buy .steps-well .action-steps li::marker { color: var(--g-buy); }
+body.glass .action-card.sell .steps-well .action-steps li::marker { color: var(--g-sell); }
+
+/* Level glass tiles */
+body.glass .al-box.glass-tile {
+  padding: 0.85rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 4px 16px rgba(0, 0, 0, 0.2);
+}
+body.glass .al-box span {
+  color: var(--g-muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+body.glass .al-box strong {
+  font-family: "JetBrains Mono", "SF Mono", monospace;
+  font-size: 1.06rem;
+  font-weight: 600;
+  color: var(--g-text);
+  text-shadow: none;
+}
+body.glass .al-box.entry strong { color: #67e8f9; }
+body.glass .al-box.sl strong { color: #fda4af; }
+body.glass .al-box.tp strong { color: #6ee7b7; }
+body.glass .al-box.rr strong { color: #a5c4ff; }
+body.glass .al-hint { color: var(--g-muted); }
+
+body.glass .action-why,
+body.glass .action-grade-reasons {
+  color: var(--g-muted);
+  text-shadow: none;
+}
+body.glass .action-size-note { color: #c4b5fd; }
+
+body.glass .check-chip {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--g-muted);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+body.glass .check-chip.ok {
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+/* Floating glass cards */
+body.glass .card,
+body.glass .simple-more {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--g-radius);
+  color: var(--g-text);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+body.glass .card h2,
+body.glass .simple-more > summary,
+body.glass .simple-detail-grid h3 {
+  color: var(--g-muted);
+  text-shadow: none;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+body.glass .user-levels-banner {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 18px;
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+body.glass .user-levels-banner.tip { opacity: 1; border-style: solid; }
+body.glass .user-levels-banner.active,
+body.glass .user-levels-banner.at-level {
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.3) !important;
+  background: rgba(52, 211, 153, 0.1);
+}
+
+/* Chart glass frame */
+body.glass .chart-wrap {
+  padding: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.28);
+}
+body.glass .chart-tool-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--g-text) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  font-weight: 600;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+body.glass .chart-tool-btn.active,
+body.glass .chart-tool-btn:active {
+  background: rgba(130, 170, 255, 0.2) !important;
+  border-color: rgba(130, 170, 255, 0.4) !important;
+  color: #c7d7ff !important;
+}
+body.glass .chart-expand-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: var(--g-text);
+  font-weight: 650;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* iOS-style primary button */
+body.glass .refresh-btn {
+  min-width: 200px;
+  padding: 0.85rem 1.5rem;
+  font-size: 1rem;
+  background: linear-gradient(
+    180deg,
+    rgba(130, 170, 255, 0.45) 0%,
+    rgba(90, 120, 220, 0.35) 100%
+  );
+  color: #fff;
+  border: 1px solid rgba(160, 190, 255, 0.4);
+  border-radius: 999px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow:
+    0 8px 24px rgba(80, 120, 255, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  text-shadow: none;
+  transition: transform 0.12s, box-shadow 0.15s, filter 0.15s;
+}
+body.glass .refresh-btn:hover {
+  filter: brightness(1.08);
+  color: #fff;
+}
+body.glass .refresh-btn:active {
+  transform: scale(0.97);
+  box-shadow:
+    0 4px 12px rgba(80, 120, 255, 0.2),
+    inset 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+body.glass .simple-footer p {
+  color: var(--g-muted);
+  text-shadow: none;
+}
+
+body.glass .exit-alert {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  font-weight: 600;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+body.glass .exit-alert.immediate {
+  background: rgba(251, 113, 133, 0.15);
+  border-color: rgba(251, 113, 133, 0.35);
+  color: #fda4af;
+  text-shadow: none;
+}
+body.glass .exit-alert.consider {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fcd34d;
+}
+
+body.glass .simple-more > summary,
+body.glass .simple-alerts-details > summary {
+  color: var(--g-muted);
+  padding: 0.55rem 1rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+body.glass .simple-more > summary::-webkit-details-marker { display: none; }
+body.glass .simple-more[open] > summary {
+  color: var(--g-text);
+  margin-bottom: 0.9rem;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+body.glass .news-list,
+body.glass .calendar-list,
+body.glass .analysis-content,
+body.glass .simple-list {
+  color: var(--g-text);
+}
+body.glass .simple-list li.ok { color: var(--g-buy); }
+body.glass .news-item,
+body.glass .event-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.45rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--g-text);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+body.glass .news-title a { color: #a5c4ff; }
+body.glass .news-meta { color: var(--g-muted); }
+
+body.glass .ta-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: var(--g-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+body.glass .ta-btn.primary {
+  color: #fff;
+  border-color: rgba(130, 170, 255, 0.4);
+  background: rgba(130, 170, 255, 0.22);
+}
+body.glass .ta-tg-row input {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: var(--g-text);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 0.7rem;
+}
+body.glass .trade-alerts-panel { color: var(--g-text); }
+body.glass .ta-check { color: var(--g-muted); }
+
+body.glass .chart-fullscreen {
+  background: rgba(10, 12, 18, 0.85);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+}
+body.glass .chart-fs-close {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: var(--g-text);
+  font-weight: 650;
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Balance glass */
+body.glass.balance-page {
+  background: var(--g-bg);
+  color: var(--g-text);
+}
+body.glass.balance-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 55% 45% at 20% 15%, rgba(99, 102, 241, 0.4) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 40% at 80% 85%, rgba(167, 139, 250, 0.28) 0%, transparent 50%),
+    linear-gradient(165deg, #0b0d14 0%, #10131c 100%);
+}
+body.glass.balance-page .header,
+body.glass.balance-page main,
+body.glass.balance-page .footer {
+  position: relative;
+  z-index: 1;
+}
+body.glass.balance-page .header {
+  background: rgba(18, 20, 30, 0.55);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+body.glass.balance-page .card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+body.glass.balance-page .nav-tab {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  color: var(--g-muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+body.glass.balance-page .nav-tab.active {
+  color: #c4b5fd;
+  background: rgba(167, 139, 250, 0.18);
+  border-color: rgba(167, 139, 250, 0.35);
+}
+body.glass.balance-page .bs-metric {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+body.glass.balance-page .refresh-btn {
+  background: rgba(130, 170, 255, 0.22);
+  border: 1px solid rgba(130, 170, 255, 0.35);
+  border-radius: 999px;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font-weight: 650;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+body.glass.balance-page .bs-mfb-form input {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: var(--g-text);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+body.glass.balance-page .bs-hero-pnl.up { color: var(--g-buy); }
+body.glass.balance-page .bs-hero-pnl.down { color: var(--g-sell); }
+body.glass.balance-page .subtitle,
+body.glass.balance-page .bs-hero-sub,
+body.glass.balance-page .bs-hero-meta { color: var(--g-muted); }
+body.glass.balance-page h1 { color: var(--g-text); }
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  body.glass * {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 600px) {
+  body.glass .action-conf.glass-orb {
+    min-width: 5.2rem;
+    border-radius: 22px;
+    aspect-ratio: auto;
+  }
+  body.glass .lcd-digits,
+  body.glass .glass-price-well .price { font-size: 1.25rem !important; }
+}
+
+/* Fallback if backdrop-filter unsupported */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  body.glass .action-card,
+  body.glass .card,
+  body.glass .glass-bar.header,
+  body.glass .glass-price-well {
+    background: rgba(24, 28, 40, 0.92);
+  }
+}
