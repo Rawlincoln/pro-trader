@@ -89,12 +89,16 @@ socketio = SocketIO(
 PORT = int(os.environ.get("PORT", 5000))
 HOST = os.environ.get("HOST", "0.0.0.0")
 _bg_started = False
+_bg_lock = threading.Lock()
+_worker_alive: dict[str, float] = {}
+_worker_threads: dict[str, threading.Thread] = {}
 
 _cache: dict[str, dict] = {}
 _cache_lock = threading.Lock()
 _refreshing: set[str] = set()
 REFRESH_INTERVAL = 30
 PRICE_WATCH_INTERVAL = 15
+WORKER_STALE_SEC = 180  # if no heartbeat, restart worker
 
 
 def _fetch_market_bundle(asset_id: str) -> tuple:
@@ -489,10 +493,15 @@ def _bg_sleep(seconds: float) -> None:
         time.sleep(seconds)
 
 
+def _beat(name: str) -> None:
+    _worker_alive[name] = time.time()
+
+
 def background_refresh():
     asset_ids = list(ASSETS.keys())
     idx = 0
     while True:
+        _beat("refresh")
         asset_id = asset_ids[idx % len(asset_ids)]
         idx += 1
         try:
@@ -505,6 +514,7 @@ def background_refresh():
 def background_news_monitor():
     """Fast loop for pre-event and live news alerts (+ Telegram when configured)."""
     while True:
+        _beat("news")
         try:
             alerts = run_news_monitor()
             cfg = load_alert_config()
@@ -544,6 +554,7 @@ def background_news_monitor():
 def background_price_watch():
     """Fast price loop for entry/exit level hits on all symbols."""
     while True:
+        _beat("price")
         try:
             config = load_alert_config()
             if not config.get("enabled"):
@@ -580,6 +591,7 @@ def background_price_watch():
 def background_signal_audit():
     """Re-score journal, and send daily accuracy audit on Telegram after 18:00 UTC."""
     while True:
+        _beat("audit")
         try:
             prices: dict[str, float] = {}
             for asset_id in ASSETS:
@@ -604,6 +616,43 @@ def background_signal_audit():
         _bg_sleep(300 if IS_CLOUD else 180)
 
 
+def background_worker_watchdog():
+    """Restart dead scanners so Telegram alerts keep running after free-tier wake."""
+    # Resolve targets lazily (ledger defined later in module)
+    while True:
+        try:
+            targets = {
+                "refresh": background_refresh,
+                "news": background_news_monitor,
+                "price": background_price_watch,
+                "audit": background_signal_audit,
+                "ledger": background_ledger_sync,
+            }
+            now = time.time()
+            for name, fn in targets.items():
+                last = float(_worker_alive.get(name) or 0)
+                thr = _worker_threads.get(name)
+                # eventlet mode has no Thread handle — rely on heartbeat only
+                if thr is None and ASYNC_MODE == "eventlet":
+                    dead = False
+                else:
+                    dead = thr is not None and (not thr.is_alive())
+                stale = last > 0 and (now - last) > WORKER_STALE_SEC
+                never_beat = last == 0
+                if dead or stale or (never_beat and _bg_started and now - last > WORKER_STALE_SEC):
+                    # Give workers time to produce first beat
+                    if never_beat and not dead:
+                        continue
+                    logger.warning(
+                        "Restarting background worker %s (dead=%s stale=%s last=%.0fs ago)",
+                        name, dead, stale, (now - last) if last else -1,
+                    )
+                    _spawn_named_worker(name, fn)
+        except Exception as exc:
+            logger.error("Worker watchdog error: %s", exc)
+        _bg_sleep(45)
+
+
 def prewarm_cache():
     targets = list(ASSETS.keys())
     for asset_id in targets:
@@ -620,22 +669,70 @@ def _spawn_background(target) -> None:
         threading.Thread(target=target, daemon=True).start()
 
 
+def _spawn_named_worker(name: str, target) -> None:
+    """Start (or restart) a named daemon worker and track its thread."""
+    def runner():
+        _beat(name)
+        try:
+            target()
+        except Exception as exc:
+            logger.exception("Worker %s crashed: %s", name, exc)
+        finally:
+            # Mark as dead so watchdog restarts
+            _worker_alive[name] = 0
+
+    if ASYNC_MODE == "eventlet":
+        socketio.start_background_task(runner)
+        _worker_threads[name] = None  # eventlet tasks not Thread objects
+    else:
+        t = threading.Thread(target=runner, daemon=True, name=f"bg-{name}")
+        _worker_threads[name] = t
+        t.start()
+    _beat(name)
+
+
 def start_background_tasks() -> None:
     global _bg_started
-    if _bg_started:
-        return
-    _bg_started = True
+    with _bg_lock:
+        if _bg_started:
+            return
+        _bg_started = True
     if IS_CLOUD:
         threading.Timer(3.0, prewarm_cache).start()
     else:
         _spawn_background(prewarm_cache)
-    _spawn_background(background_refresh)
-    _spawn_background(background_news_monitor)
-    _spawn_background(background_price_watch)
-    _spawn_background(background_signal_audit)
+    _spawn_named_worker("refresh", background_refresh)
+    _spawn_named_worker("news", background_news_monitor)
+    _spawn_named_worker("price", background_price_watch)
+    _spawn_named_worker("audit", background_signal_audit)
     # Always keep Myfxbook ledger fresh (phone trades) while app is running
-    _spawn_background(background_ledger_sync)
+    _spawn_named_worker("ledger", background_ledger_sync)
+    _spawn_background(background_worker_watchdog)
     logger.info("Background tasks started (cloud=%s, myfxbook auto-sync + signal audit on)", IS_CLOUD)
+    # One-shot Telegram heartbeat so user knows alerts path is live after boot
+    if IS_CLOUD:
+        threading.Timer(12.0, _telegram_boot_heartbeat).start()
+
+
+def _telegram_boot_heartbeat() -> None:
+    """Notify once after deploy/wake that scanners + Telegram are ready."""
+    try:
+        cfg = load_alert_config()
+        if not (cfg.get("server_push_ready") or (
+            cfg.get("telegram_enabled") and cfg.get("telegram_configured")
+        )):
+            return
+        from data.trade_alerts import send_telegram_message
+        status = get_alerts_status(scanner_running=_bg_started)
+        send_telegram_message(
+            "Pro Trader · scanners online\n"
+            f"Telegram 24/7: {'ready' if status.get('server_push_ready') else 'not ready'}\n"
+            "Monitoring EUR/USD · Gold · Bitcoin\n"
+            "Precision alerts active (Grade B+, conf≥72%).",
+            cfg,
+        )
+    except Exception as exc:
+        logger.debug("Boot heartbeat skip: %s", exc)
 
 
 def _render_dashboard(asset_id: str):
@@ -650,27 +747,45 @@ def _render_dashboard(asset_id: str):
 
 @app.before_request
 def _lazy_start_workers():
+    # Skip ultra-light healthz so Render health checks never time out
+    if request.path in ("/healthz", "/favicon.ico"):
+        return
     # Include /health so Render keepalive wakes scanners 24/7
     start_background_tasks()
 
 
+@app.route("/healthz")
+def healthz():
+    """Instant liveness for Render (must respond <5s even on cold start)."""
+    return "ok", 200, {"Content-Type": "text/plain"}
+
+
 @app.route("/health")
 def health():
+    # Start workers async-safe; response itself stays light
     start_background_tasks()
     status = get_alerts_status(scanner_running=_bg_started)
-    audit = get_audit_status()
+    try:
+        audit = get_audit_status()
+        audit_snip = {
+            "total_logged": audit.get("total_logged"),
+            "open": audit.get("open"),
+            "win_rate": audit.get("overall_win_rate"),
+            "calibration_ready": (audit.get("calibration") or {}).get("ready"),
+        }
+    except Exception:
+        audit_snip = {}
     return jsonify({
         "status": "ok",
         "service": "pro-trader",
         "cloud": IS_CLOUD,
         "trade_alerts": status,
         "telegram_24_7": bool(status.get("server_push_ready")),
-        "signal_audit": {
-            "total_logged": audit.get("total_logged"),
-            "open": audit.get("open"),
-            "win_rate": audit.get("overall_win_rate"),
-            "calibration_ready": (audit.get("calibration") or {}).get("ready"),
+        "workers": {
+            name: (time.time() - ts) if ts else None
+            for name, ts in _worker_alive.items()
         },
+        "signal_audit": audit_snip,
     })
 
 
@@ -922,6 +1037,7 @@ def background_ledger_sync():
     # First pass ASAP so balance is fresh after launch
     first = True
     while True:
+        _beat("ledger")
         try:
             cfg = load_agent_config()
             auto = cfg.get("myfxbook_auto_sync", True)
@@ -937,7 +1053,11 @@ def background_ledger_sync():
             # After first sync, wait full interval; first run had no prior wait
             if first:
                 first = False
-            _bg_sleep(minutes * 60)
+            # Heartbeat during long sleep so watchdog doesn't restart ledger
+            end = time.time() + minutes * 60
+            while time.time() < end:
+                _beat("ledger")
+                _bg_sleep(min(30, max(1, end - time.time())))
         except Exception as exc:
             logger.warning("Ledger sync error: %s", exc)
             _bg_sleep(60)

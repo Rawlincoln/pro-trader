@@ -7,7 +7,8 @@ services:
     buildCommand: pip install -r requirements-cloud.txt
     # Single worker so in-process alert scanners stay continuous
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
-    healthCheckPath: /health
+    # Instant path — free tier cold starts must answer <5s or Render kills the instance
+    healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION
         value: "3.13.0"

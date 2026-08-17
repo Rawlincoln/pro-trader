@@ -1,0 +1,34 @@
+# Keep free-tier Render awake so Telegram scanners run 24/7.
+# GitHub free cron for public repos — no Render paid cron required.
+name: pro-trader-keepalive
+
+on:
+  schedule:
+    # Every 10 minutes
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Wake Pro Trader (healthz then full health)
+        run: |
+          set -e
+          URL="${KEEPALIVE_URL:-https://pro-trader-fjrc.onrender.com}"
+          echo "Pinging $URL/healthz …"
+          # Cold starts can take 30–60s — long timeout, retry once
+          for i in 1 2 3; do
+            if curl -fsS --max-time 90 "$URL/healthz"; then
+              echo ""
+              echo "healthz ok (attempt $i)"
+              break
+            fi
+            echo "attempt $i failed, retry…"
+            sleep 10
+          done
+          # Full health also starts background scanners
+          curl -fsS --max-time 90 "$URL/health" | head -c 800 || true
+          echo ""
+          echo "keepalive done"
