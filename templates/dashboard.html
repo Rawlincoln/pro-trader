@@ -277,12 +277,15 @@
             <label class="ta-check"><input type="checkbox" id="taTelegram" /> Telegram phone push</label>
             <p class="ta-perm-note" id="taSavedNote" hidden>Saved on this PC</p>
             <p class="ta-warn" style="opacity:.85;margin:.35rem 0">
-              For 24/7 with PC off: set <code>TELEGRAM_BOT_TOKEN</code> + <code>TELEGRAM_CHAT_ID</code> on Render Environment (see TELEGRAM.md). Local save only works while this PC is on.
+              24/7: set <code>TELEGRAM_BOT_TOKEN</code>, personal <code>TELEGRAM_CHAT_ID</code>, and paid <code>TELEGRAM_CHANNEL_ID</code> on Render (see TELEGRAM.md). Alerts go to every destination.
             </p>
             <div class="ta-tg-row">
               <input type="password" id="taTgToken" placeholder="Bot token from @BotFather" autocomplete="off" />
-              <input type="text" id="taTgChat" placeholder="Chat ID" />
+              <input type="text" id="taTgChat" placeholder="Personal chat ID" />
               <button type="button" class="ta-btn" id="taDiscover">Find chat ID</button>
+            </div>
+            <div class="ta-tg-row">
+              <input type="text" id="taTgChannel" placeholder="Paid channel ID (−100…)" title="Add bot as channel admin first" />
             </div>
             <div id="taChatPick" class="ta-chat-pick" hidden></div>
             <p class="ta-warn" id="taChatWarn" hidden></p>
@@ -323,7 +326,7 @@
     };
   </script>
   <script src="/static/js/chart-tools.js?v=5"></script>
-  <script src="/static/js/trade-alerts.js?v=5"></script>
+  <script src="/static/js/trade-alerts.js?v=6"></script>
   <script src="/static/js/signal-audit.js?v=1"></script>
   <script src="/static/js/app.js?v=17"></script>
 </body>

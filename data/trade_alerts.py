@@ -33,6 +33,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "telegram_enabled": False,
     "telegram_bot_token": "",
     "telegram_chat_id": "",
+    # Paid / broadcast channel (negative id like -100xxxxxxxxxx). Also acceptable in chat_id as CSV.
+    "telegram_channel_id": "",
     # Precision mode: fewer, higher-quality alerts
     "precision_mode": True,
     "min_confidence_signal": 72,
@@ -71,16 +73,48 @@ def _strip_env(val: str) -> str:
     return v
 
 
+def _parse_chat_ids(*raw_values: str) -> list[str]:
+    """Split comma/space/semicolon separated Telegram chat/channel IDs."""
+    ids: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_values:
+        if not raw:
+            continue
+        for part in str(raw).replace(";", ",").replace(" ", ",").split(","):
+            cid = part.strip()
+            if not cid or cid in seen:
+                continue
+            seen.add(cid)
+            ids.append(cid)
+    return ids
+
+
+def telegram_destinations(cfg: dict[str, Any] | None = None) -> list[str]:
+    """All chat/channel IDs that should receive alerts (personal + paid channel)."""
+    cfg = cfg or load_config()
+    return _parse_chat_ids(
+        str(cfg.get("telegram_chat_id") or ""),
+        str(cfg.get("telegram_channel_id") or ""),
+    )
+
+
 def _merge_env_config(cfg: dict[str, Any]) -> dict[str, Any]:
     env_locked: dict[str, bool] = {}
     token_env = _strip_env(os.environ.get("TELEGRAM_BOT_TOKEN", ""))
     chat_env = _strip_env(os.environ.get("TELEGRAM_CHAT_ID", ""))
+    channel_env = _strip_env(
+        os.environ.get("TELEGRAM_CHANNEL_ID", "")
+        or os.environ.get("TELEGRAM_PAID_CHANNEL_ID", "")
+    )
     if token_env:
         cfg["telegram_bot_token"] = token_env
         env_locked["telegram_token"] = True
     if chat_env:
         cfg["telegram_chat_id"] = chat_env
         env_locked["telegram_chat"] = True
+    if channel_env:
+        cfg["telegram_channel_id"] = channel_env
+        env_locked["telegram_channel"] = True
     if env_locked:
         cfg["telegram_enabled"] = _env_truthy("TELEGRAM_ENABLED", True)
         cfg["enabled"] = _env_truthy("TRADE_ALERTS_ENABLED", True)
@@ -89,8 +123,12 @@ def _merge_env_config(cfg: dict[str, Any]) -> dict[str, Any]:
     if os.environ.get("ALERT_MIN_GRADE"):
         cfg["min_grade"] = os.environ["ALERT_MIN_GRADE"].strip().upper()[:1] or "B"
     token = (cfg.get("telegram_bot_token") or "").strip()
-    chat = str(cfg.get("telegram_chat_id") or "").strip()
-    cfg["telegram_configured"] = bool(token and chat)
+    dests = _parse_chat_ids(
+        str(cfg.get("telegram_chat_id") or ""),
+        str(cfg.get("telegram_channel_id") or ""),
+    )
+    cfg["telegram_destinations"] = dests
+    cfg["telegram_configured"] = bool(token and dests)
     cfg["alerts_permanent"] = bool(env_locked)
     cfg["env_locked"] = env_locked
     cfg["server_push_ready"] = bool(
@@ -140,10 +178,13 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
             except (json.JSONDecodeError, OSError):
                 cfg = {}
 
-        allowed = set(DEFAULT_CONFIG) | {"telegram_bot_token", "telegram_chat_id"}
+        allowed = set(DEFAULT_CONFIG) | {
+            "telegram_bot_token", "telegram_chat_id", "telegram_channel_id",
+        }
         skip_locked = {
             "telegram_bot_token": "telegram_token",
             "telegram_chat_id": "telegram_chat",
+            "telegram_channel_id": "telegram_channel",
         }
         for key, val in updates.items():
             if key not in allowed:
@@ -151,7 +192,7 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
             lock = skip_locked.get(key)
             if lock and env_locked.get(lock):
                 continue
-            if key in ("telegram_bot_token", "telegram_chat_id") and not str(val).strip():
+            if key in ("telegram_bot_token", "telegram_chat_id", "telegram_channel_id") and not str(val).strip():
                 continue
             if key == "symbols" and isinstance(val, dict):
                 cfg["symbols"] = {**(cfg.get("symbols") or DEFAULT_CONFIG["symbols"]), **val}
@@ -159,8 +200,11 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
                 cfg[key] = val
 
         token = (cfg.get("telegram_bot_token") or current.get("telegram_bot_token") or "").strip()
-        chat = str(cfg.get("telegram_chat_id") or current.get("telegram_chat_id") or "").strip()
-        if token and chat and updates.get("telegram_enabled") is not False:
+        dests = _parse_chat_ids(
+            str(cfg.get("telegram_chat_id") or current.get("telegram_chat_id") or ""),
+            str(cfg.get("telegram_channel_id") or current.get("telegram_channel_id") or ""),
+        )
+        if token and dests and updates.get("telegram_enabled") is not False:
             cfg["telegram_enabled"] = True
 
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -171,11 +215,14 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
 def _safe_config(cfg: dict[str, Any]) -> dict[str, Any]:
     safe = {k: v for k, v in cfg.items() if k not in ("telegram_bot_token", "env_locked")}
     token_set = bool(cfg.get("telegram_bot_token"))
-    chat_set = bool(str(cfg.get("telegram_chat_id") or "").strip())
+    dests = cfg.get("telegram_destinations") or telegram_destinations(cfg)
+    chat_set = bool(dests)
     safe["telegram_token_set"] = token_set
     safe["telegram_chat_id"] = str(cfg.get("telegram_chat_id") or "")
+    safe["telegram_channel_id"] = str(cfg.get("telegram_channel_id") or "")
+    safe["telegram_destinations"] = dests
     safe["telegram_configured"] = cfg.get("telegram_configured", False)
-    safe["needs_chat_id"] = bool(cfg.get("telegram_bot_token") and not cfg.get("telegram_chat_id"))
+    safe["needs_chat_id"] = bool(cfg.get("telegram_bot_token") and not dests)
     safe["needs_token"] = not bool(cfg.get("telegram_bot_token"))
     safe["server_push_ready"] = cfg.get("server_push_ready", False)
     safe["alerts_permanent"] = cfg.get("alerts_permanent", False) or (token_set and chat_set)
@@ -716,16 +763,22 @@ def merge_test_config(body: dict[str, Any] | None = None) -> dict[str, Any]:
     """Overlay unsaved form values onto stored config for test/discover."""
     cfg = load_config()
     body = body or {}
-    for key in ("telegram_bot_token", "telegram_chat_id", "telegram_enabled"):
+    for key in (
+        "telegram_bot_token", "telegram_chat_id", "telegram_channel_id", "telegram_enabled",
+    ):
         if key in body and body[key] is not None:
             if key == "telegram_enabled":
                 cfg[key] = bool(body[key])
             elif str(body[key]).strip():
                 cfg[key] = str(body[key]).strip()
     token = (cfg.get("telegram_bot_token") or "").strip()
-    chat = str(cfg.get("telegram_chat_id") or "").strip()
-    cfg["telegram_configured"] = bool(token and chat)
-    if body.get("telegram_enabled") is not False and token and chat:
+    dests = _parse_chat_ids(
+        str(cfg.get("telegram_chat_id") or ""),
+        str(cfg.get("telegram_channel_id") or ""),
+    )
+    cfg["telegram_destinations"] = dests
+    cfg["telegram_configured"] = bool(token and dests)
+    if body.get("telegram_enabled") is not False and token and dests:
         cfg["telegram_enabled"] = True
     return cfg
 
@@ -734,13 +787,13 @@ def _telegram_precheck(config: dict[str, Any]) -> tuple[bool, str]:
     if not config.get("telegram_enabled"):
         return False, "Telegram not enabled — check the box and click Save"
     token = (config.get("telegram_bot_token") or "").strip()
-    chat_id = str(config.get("telegram_chat_id") or "").strip()
+    dests = config.get("telegram_destinations") or telegram_destinations(config)
     if not token:
         return False, "Bot token missing — get one from @BotFather on Telegram"
-    if not chat_id:
+    if not dests:
         return False, (
-            "Chat ID missing — open your bot in Telegram, tap Start, send a message, "
-            "then click Find chat ID"
+            "Chat/channel ID missing — Start the bot for your personal ID, "
+            "or add the bot as channel admin and set TELEGRAM_CHANNEL_ID"
         )
     return True, ""
 
@@ -749,20 +802,31 @@ def send_telegram_message(
     text: str,
     config: Optional[dict[str, Any]] = None,
 ) -> tuple[bool, str]:
+    """Send to every configured destination (personal chat + paid channel)."""
     config = config or load_config()
     ok, err = _telegram_precheck(config)
     if not ok:
         return False, err
     token = (config.get("telegram_bot_token") or "").strip()
-    chat_id = str(config.get("telegram_chat_id") or "").strip()
-    ok, err, _ = _telegram_post(token, "sendMessage", {
-        "chat_id": chat_id,
-        "text": text[:4000],
-        "disable_web_page_preview": True,
-    })
-    if not ok:
-        logger.warning("Telegram send failed: %s", err)
-    return ok, err if not ok else "sent"
+    dests = config.get("telegram_destinations") or telegram_destinations(config)
+    errors: list[str] = []
+    sent = 0
+    for chat_id in dests:
+        ok_one, err_one, _ = _telegram_post(token, "sendMessage", {
+            "chat_id": chat_id,
+            "text": text[:4000],
+            "disable_web_page_preview": True,
+        })
+        if ok_one:
+            sent += 1
+        else:
+            logger.warning("Telegram send to %s failed: %s", chat_id, err_one)
+            errors.append(f"{chat_id}: {err_one}")
+    if sent == 0:
+        return False, "; ".join(errors) or "send failed"
+    if errors:
+        return True, f"sent to {sent}/{len(dests)} ({'; '.join(errors)})"
+    return True, f"sent to {sent} destination(s)"
 
 
 def send_telegram_alert(alert: dict[str, Any], config: dict[str, Any] | None = None) -> bool:
@@ -792,12 +856,16 @@ def test_telegram(config: dict[str, Any] | None = None) -> dict[str, Any]:
             "needs_chat_id": bool(config.get("telegram_bot_token") and not config.get("telegram_chat_id")),
             "error": pre_err,
         }
+    dests = config.get("telegram_destinations") or telegram_destinations(config)
     ok, detail = send_telegram_message(
         "Pro Trader Telegram OK\n\n"
         "Precision alerts (Grade A/B, high confidence):\n"
         "• BUY / SELL bias changes\n"
         "• ENTRY when price is at the level\n"
-        "• EXIT on SL / TP hits\n\n"
+        "• EXIT on SL / TP hits\n"
+        "• A+ swing-failure confirms\n\n"
+        f"Destinations: {len(dests)} "
+        f"(personal + paid channel if configured)\n"
         "Symbols: EUR/USD · Gold · Bitcoin\n"
         "Runs 24/7 on Render — PC can be off.",
         config,
@@ -806,20 +874,25 @@ def test_telegram(config: dict[str, Any] | None = None) -> dict[str, Any]:
         "ok": ok,
         "telegram_configured": True,
         "telegram_enabled": config.get("telegram_enabled", False),
+        "destinations": dests,
         "error": None if ok else detail,
+        "detail": detail if ok else None,
     }
 
 
 def get_alerts_status(scanner_running: bool = True) -> dict[str, Any]:
     cfg = load_config()
     symbols_on = [k for k, v in (cfg.get("symbols") or {}).items() if v]
+    dests = cfg.get("telegram_destinations") or telegram_destinations(cfg)
     return {
         "enabled": cfg.get("enabled", True),
         "scanner_running": scanner_running,
         "server_push_ready": cfg.get("server_push_ready", False),
         "telegram_configured": cfg.get("telegram_configured", False),
         "telegram_enabled": cfg.get("telegram_enabled", False),
-        "needs_chat_id": bool(cfg.get("telegram_bot_token") and not cfg.get("telegram_chat_id")),
+        "telegram_destinations": dests,
+        "telegram_channel_id": str(cfg.get("telegram_channel_id") or ""),
+        "needs_chat_id": bool(cfg.get("telegram_bot_token") and not dests),
         "needs_token": not bool(cfg.get("telegram_bot_token")),
         "symbols_monitored": symbols_on,
         "alert_types": {
@@ -830,9 +903,13 @@ def get_alerts_status(scanner_running: bool = True) -> dict[str, Any]:
             "exit_partial": cfg.get("alert_exit_partial", True),
         },
         "hint": (
-            "Server monitors EUR/USD, Gold & Bitcoin 24/7 — Telegram pushes without opening the site."
+            f"Broadcasting to {len(dests)} Telegram destination(s) 24/7 "
+            "(personal chat and/or paid channel)."
             if cfg.get("server_push_ready")
-            else "Enable Telegram in settings or set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in Render env."
+            else (
+                "Set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID "
+                "(and optional TELEGRAM_CHANNEL_ID for paid channel) on Render."
+            )
         ),
     }
 

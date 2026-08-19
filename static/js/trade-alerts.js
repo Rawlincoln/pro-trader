@@ -117,8 +117,10 @@ const TradeAlerts = (() => {
     const el = $("trade-alerts-status");
     if (!el || !status) return;
     const syms = (status.symbols_monitored || []).join(", ") || "—";
+    const nDest = (status.telegram_destinations || []).length;
+    const destHint = nDest ? ` · ${nDest} Telegram dest` : "";
     if (status.server_push_ready) {
-      el.textContent = `24/7 ACTIVE · ${syms} · Telegram ON`;
+      el.textContent = `24/7 ACTIVE · ${syms}${destHint}`;
       el.className = "trade-alerts-status ready";
     } else if (status.enabled && status.scanner_running) {
       el.textContent = `Monitoring ${syms} · browser alerts`;
@@ -153,19 +155,23 @@ const TradeAlerts = (() => {
       $("taTgChat").disabled = !!locked.telegram_chat;
       if (cfg.telegram_chat_id) $("taTgChat").value = cfg.telegram_chat_id;
     }
+    if ($("taTgChannel")) {
+      $("taTgChannel").disabled = !!locked.telegram_channel;
+      if (cfg.telegram_channel_id) $("taTgChannel").value = cfg.telegram_channel_id;
+    }
     const savedNote = $("taSavedNote");
     if (savedNote) savedNote.hidden = !cfg.saved_permanently;
     const warn = $("taChatWarn");
     if (warn) {
       if (cfg.needs_chat_id) {
         warn.hidden = false;
-        warn.textContent = "Token saved but chat ID is missing — message your bot in Telegram, then Find chat ID.";
+        warn.textContent = "Token saved but no chat/channel ID — message your bot, or add bot as channel admin and paste channel ID (−100…).";
       } else if (cfg.needs_token) {
         warn.hidden = false;
         warn.textContent = "Paste your bot token from @BotFather to enable Telegram alerts.";
       } else if (cfg.telegram_enabled && !cfg.telegram_configured) {
         warn.hidden = false;
-        warn.textContent = "Complete token + chat ID, then Save and Test.";
+        warn.textContent = "Complete token + personal chat and/or paid channel ID, then Save and Test.";
       } else {
         warn.hidden = true;
       }
@@ -188,6 +194,7 @@ const TradeAlerts = (() => {
       },
       telegram_bot_token: $("taTgToken")?.value.trim() || undefined,
       telegram_chat_id: $("taTgChat")?.value.trim() || undefined,
+      telegram_channel_id: $("taTgChannel")?.value.trim() || undefined,
     };
   }
 
