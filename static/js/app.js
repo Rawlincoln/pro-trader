@@ -113,6 +113,43 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 
+/** A+ 3-step bias → liquidity → SFP panel */
+function renderAPlus(data) {
+  const ap = data.a_plus;
+  const badge = document.getElementById("a-plus-badge");
+  const biasEl = document.getElementById("ap-bias");
+  const liqEl = document.getElementById("ap-liq");
+  const sfpEl = document.getElementById("ap-sfp");
+  const notesEl = document.getElementById("ap-notes");
+  if (!biasEl) return;
+  if (!ap) {
+    if (badge) badge.textContent = "warming up";
+    biasEl.textContent = "—";
+    if (liqEl) liqEl.textContent = "—";
+    if (sfpEl) sfpEl.textContent = "—";
+    if (notesEl) notesEl.textContent = "";
+    return;
+  }
+  const steps = ap.steps || {};
+  const sfp = ap.sfp || {};
+  const sig = (ap.signal || "WAIT").toUpperCase();
+  if (badge) {
+    badge.textContent = sfp.detected && sfp.aligned_with_bias
+      ? `SFP ${sfp.quality || ""} → ${sig}`
+      : `${(ap.bias || {}).bias || "neutral"} bias`;
+    badge.className = "a-plus-badge " + (
+      sig === "BUY" ? "buy" : sig === "SELL" ? "sell" : "wait"
+    );
+  }
+  biasEl.textContent = steps["1_bias"] || "—";
+  if (liqEl) liqEl.textContent = steps["2_liquidity"] || "—";
+  if (sfpEl) sfpEl.textContent = steps["3_sfp"] || "—";
+  if (notesEl) {
+    const notes = ap.notes || [];
+    notesEl.textContent = notes.slice(0, 4).join(" · ");
+  }
+}
+
 /** Big plain-language BUY / SELL / WAIT card — prefers backend coach object */
 function renderSimpleAction(data, decimals) {
   const card = document.getElementById("action-card");
@@ -210,6 +247,9 @@ function renderSimpleAction(data, decimals) {
       .map((c) => `<li class="${c.ok ? "ok" : ""}">${c.ok ? "✓" : "○"} ${c.label}${c.detail ? ` — ${c.detail}` : ""}</li>`)
       .join("");
   }
+
+  // A+ 3-step framework panel
+  renderAPlus(data);
 
   // Exit banner from coach
   const exitAlert = document.getElementById("exit-alert");

@@ -933,6 +933,35 @@ body.chart-fs-open { overflow: hidden; }
   color: var(--text);
   font-size: 0.9rem;
 }
+/* A+ 3-step framework */
+.a-plus-card { margin: 0.75rem 0 1rem; padding: 0.85rem 1rem; }
+.a-plus-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+.a-plus-header h2 { margin: 0; font-size: 1rem; }
+.a-plus-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--muted);
+}
+.a-plus-badge.buy { background: rgba(34, 197, 94, 0.2); color: var(--buy, #22c55e); }
+.a-plus-badge.sell { background: rgba(239, 68, 68, 0.2); color: var(--sell, #ef4444); }
+.a-plus-sub { font-size: 0.78rem; color: var(--muted); margin: 0.35rem 0 0.55rem; }
+.a-plus-steps {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.a-plus-steps li { margin-bottom: 0.25rem; }
+.a-plus-note { font-size: 0.78rem; color: var(--muted); margin: 0.55rem 0 0; }
+
 /* Signal accuracy audit */
 .signal-audit-panel {
   padding: 0.75rem 0.25rem 0.5rem;

@@ -75,6 +75,7 @@ def setup_grade(
     plan: dict | None,
     session: dict | None,
     news_sentiment: dict | None,
+    a_plus: dict | None = None,
 ) -> dict[str, Any]:
     """A–F quality grade for the current setup."""
     signal = (signal or "WAIT").upper()
@@ -83,6 +84,7 @@ def setup_grade(
     user_sr = user_sr or {}
     cal = calendar_risk or {}
     session = session or {}
+    a_plus = a_plus or {}
     score = 0.0
     reasons: list[str] = []
 
@@ -152,6 +154,25 @@ def setup_grade(
     elif status == "SKIP_POOR_RR":
         score -= 15
         reasons.append("Poor risk:reward")
+
+    # A+ framework: bias + SFP at liquidity
+    sfp = (a_plus.get("sfp") or {}) if a_plus else {}
+    bias = (a_plus.get("bias") or {}) if a_plus else {}
+    if sfp.get("detected") and sfp.get("aligned_with_bias") and sfp.get("quality") == "A":
+        score += 14
+        reasons.append("A+ swing failure at key liquidity")
+    elif sfp.get("detected") and sfp.get("aligned_with_bias") and sfp.get("quality") == "B":
+        score += 8
+        reasons.append("A+ SFP (good) at liquidity pool")
+    if bias.get("strength") == "strong" and bias.get("bias") in ("bullish", "bearish"):
+        if (bias["bias"] == "bullish" and signal == "BUY") or (
+            bias["bias"] == "bearish" and signal == "SELL"
+        ):
+            score += 8
+            reasons.append(f"Aligned with strong HTF bias ({bias.get('pattern')})")
+    if bias.get("target_ready") is False and signal in ("BUY", "SELL"):
+        score -= 6
+        reasons.append("Daily liquidity target already taken")
 
     if rr is not None:
         if rr >= 2.0:
@@ -298,6 +319,7 @@ def build_coach_card(
     signal_source: str = "technical",
     equity: float = 1000.0,
     risk_percent: float = 1.0,
+    a_plus: dict | None = None,
 ) -> dict[str, Any]:
     """Single object the UI should trust for what to do next."""
     asset = get_asset(asset_id)
@@ -307,6 +329,7 @@ def build_coach_card(
     status = plan.get("position_status") or "NO_POSITION"
     technical = technical or {}
     session = market_session()
+    a_plus = a_plus or {}
 
     grade = setup_grade(
         signal=signal,
@@ -318,6 +341,7 @@ def build_coach_card(
         plan=plan,
         session=session,
         news_sentiment=news_sentiment,
+        a_plus=a_plus,
     )
 
     # Soft-block weak grades
@@ -436,7 +460,8 @@ def build_coach_card(
         "checklist": _checklist(
             technical, calendar_risk, user_sr, plan, news_sentiment, session, grade
         ),
-        "one_liner": _one_liner(signal, verb, grade, session, plan, asset["name"]),
+        "one_liner": _one_liner(signal, verb, grade, session, plan, asset["name"], a_plus),
+        "a_plus_steps": (a_plus or {}).get("steps"),
     }
 
 
@@ -568,10 +593,19 @@ def _one_liner(
     session: dict,
     plan: dict,
     name: str,
+    a_plus: dict | None = None,
 ) -> str:
+    ap = a_plus or {}
+    sfp = ap.get("sfp") or {}
+    bias = (ap.get("bias") or {}).get("bias")
+    extra = ""
+    if sfp.get("detected") and sfp.get("aligned_with_bias"):
+        extra = f" · A+ SFP {sfp.get('quality')} @ {sfp.get('level_kind')}"
+    elif bias and bias != "neutral":
+        extra = f" · HTF bias {bias}"
     if signal == "WAIT":
-        return f"{verb}. Grade {grade.get('letter', '—')}. Session: {session.get('name')}."
+        return f"{verb}. Grade {grade.get('letter', '—')}. Session: {session.get('name')}.{extra}"
     return (
         f"{verb} on {name} · Grade {grade.get('letter')} · "
-        f"{session.get('name')} · status {plan.get('position_status', '—')}"
+        f"{session.get('name')} · status {plan.get('position_status', '—')}{extra}"
     )

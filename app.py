@@ -18,6 +18,11 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 from analysis.attention_liquidity import blend_attention_into_signal, build_attention_liquidity
+from analysis.a_plus_framework import (
+    a_plus_plan_overrides,
+    apply_a_plus_to_signal,
+    build_a_plus_framework,
+)
 from analysis.coach import build_coach_card
 from analysis.indicators import add_all_indicators, indicators_to_series
 from analysis.patterns import pick_primary_pattern
@@ -201,8 +206,26 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             if signal_source == "attention" and immediate:
                 signal_source = "attention+news"
 
+        # A+ 3-step: HTF bias → liquidity pools → swing failure pattern
+        a_plus = None
+        a_plus_notes: list[str] = []
+        try:
+            a_plus = build_a_plus_framework(df_1h, df_4h, asset_id)
+            prev_sig = final_signal
+            final_signal, final_conf, a_plus_notes = apply_a_plus_to_signal(
+                final_signal, float(final_conf or 0), a_plus,
+            )
+            if final_signal != prev_sig and final_signal in ("BUY", "SELL"):
+                signal_source = "a_plus_sfp"
+            elif a_plus.get("sfp", {}).get("detected") and final_signal == a_plus.get("signal"):
+                if signal_source == "technical":
+                    signal_source = "technical+a_plus"
+        except Exception as ap_exc:
+            logger.debug("A+ framework skip: %s", ap_exc)
+
         fundamental_notes = list(full["technical"].get("fundamental_notes", []))
         fundamental_notes.extend(attention_notes)
+        fundamental_notes.extend(a_plus_notes)
 
         # Final risk gate: high-impact calendar demotes late overrides
         if cal_risk.get("risk_level") == "high" and final_signal in ("BUY", "SELL"):
@@ -227,6 +250,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             asset_id=asset_id,
             user_sr=user_sr,
         )
+        trade_plan = a_plus_plan_overrides(a_plus, trade_plan)
         exit_check = check_exit_conditions(
             float(price or 0), trade_plan, full["analysis_1h"]["indicators"]
         )
@@ -267,6 +291,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             signal_source=signal_source,
             equity=equity,
             risk_percent=risk_pct,
+            a_plus=a_plus,
         )
         # Coach may demote weak / thin-session setups
         if coach.get("signal") == "WAIT" and final_signal in ("BUY", "SELL"):
@@ -298,6 +323,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
                 signal_source=signal_source,
                 equity=equity,
                 risk_percent=risk_pct,
+                a_plus=a_plus,
             )
 
         # Accuracy feedback loop: scale conf / demote weak sources from journal history
@@ -330,6 +356,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
                     signal_source=signal_source,
                     equity=equity,
                     risk_percent=risk_pct,
+                    a_plus=a_plus,
                 )
 
         result = {
@@ -350,6 +377,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "primary_trend": full["technical"]["primary_trend"],
             "fundamental_notes": fundamental_notes,
             "attention_liquidity": attention_liquidity,
+            "a_plus": a_plus,
             "analysis_1h": _serialize_analysis(full["analysis_1h"], final_signal),
             "analysis_4h": _serialize_analysis(full["analysis_4h"], final_signal),
             "trade_plan": trade_plan,
@@ -442,6 +470,49 @@ def _process_trade_alerts(asset_id: str, data: dict) -> None:
         return
     try:
         alerts, _ = detect_trade_alerts(asset_id, data)
+        # A+ SFP confirmation → high-priority Telegram when quality A/B + aligned
+        try:
+            ap = data.get("a_plus") or {}
+            sfp = ap.get("sfp") or {}
+            if (
+                sfp.get("detected")
+                and sfp.get("aligned_with_bias")
+                and sfp.get("quality") in ("A", "B")
+                and (ap.get("signal") in ("BUY", "SELL"))
+            ):
+                from datetime import datetime, timezone
+                key = f"sfp:{asset_id}:{sfp.get('side')}:{sfp.get('level')}"
+                now = time.time()
+                last = getattr(_process_trade_alerts, "_sfp_cd", {})
+                if now - float(last.get(key) or 0) >= 7200:
+                    asset = get_asset(asset_id)
+                    sfp_alert = {
+                        "id": key,
+                        "asset_id": asset_id,
+                        "asset_name": asset["name"],
+                        "asset_route": asset.get("route") or "/",
+                        "type": "entry",
+                        "signal": ap.get("signal"),
+                        "message": (
+                            f"A+ SFP {sfp.get('quality')} · {ap.get('signal')} {asset['name']}\n"
+                            f"{sfp.get('reason')}\n"
+                            f"Stop {sfp.get('stop')} · Target {sfp.get('target')}"
+                        ),
+                        "urgency": "immediate" if sfp.get("quality") == "A" else "high",
+                        "confidence": float(data.get("confidence") or ap.get("confidence") or 0),
+                        "price": sfp.get("entry") or (data.get("quote") or {}).get("price"),
+                        "entry": sfp.get("entry"),
+                        "stop_loss": sfp.get("stop"),
+                        "take_profit_1": sfp.get("target"),
+                        "grade": (data.get("coach") or {}).get("grade", {}).get("letter"),
+                        "reason": "A+ 3-step: bias + liquidity sweep + swing failure",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                    alerts = list(alerts or []) + [sfp_alert]
+                    last[key] = now
+                    _process_trade_alerts._sfp_cd = last
+        except Exception as sfp_exc:
+            logger.debug("A+ SFP alert skip: %s", sfp_exc)
         if alerts:
             dispatch_alerts(alerts)
             _emit_trade_alerts(alerts)
