@@ -390,6 +390,19 @@ def build_coach_card(
     pip_tp1 = price_to_pips(
         abs(float(tp1) - float(entry)) if entry and tp1 else None, asset_id
     )
+    pip_tp2 = price_to_pips(
+        abs(float(tp2) - float(entry)) if entry and tp2 else None, asset_id
+    )
+    pip_tp3 = price_to_pips(
+        abs(float(tp3) - float(entry)) if entry and tp3 else None, asset_id
+    )
+    # Live distance from current price (handy on cTrader)
+    pip_sl_from_price = price_to_pips(
+        abs(float(price) - float(sl)) if price and sl else None, asset_id
+    )
+    pip_tp1_from_price = price_to_pips(
+        abs(float(tp1) - float(price)) if price and tp1 else None, asset_id
+    )
 
     # Verb
     if signal == "BUY":
@@ -450,6 +463,10 @@ def build_coach_card(
             "risk_reward": plan.get("risk_reward"),
             "sl_pips": pip_sl,
             "tp1_pips": pip_tp1,
+            "tp2_pips": pip_tp2,
+            "tp3_pips": pip_tp3,
+            "sl_pips_from_price": pip_sl_from_price,
+            "tp1_pips_from_price": pip_tp1_from_price,
             "support": plan.get("nearest_support"),
             "resistance": plan.get("nearest_resistance"),
             "level_source": plan.get("level_source") or {},
@@ -513,15 +530,32 @@ def _steps(
         if plan.get("entry_trigger"):
             steps.append(plan["entry_trigger"])
 
-    sl_pips = sizing.get("sl_pips")
-    sl_txt = f"{f(plan.get('stop_loss'))}"
-    if sl_pips:
-        sl_txt += f" (~{sl_pips} pips)"
-    steps.append(f"Stop loss: {sl_txt} — exit if this breaks.")
+    aid = asset.get("id") or "eurusd"
+    entry_v = plan.get("entry")
+    sl_v = plan.get("stop_loss")
+    tp1_v = plan.get("take_profit_1")
+    tp2_v = plan.get("take_profit_2")
+    tp3_v = plan.get("take_profit_3")
+    sl_pips = sizing.get("sl_pips") or price_to_pips(
+        abs(float(entry_v) - float(sl_v)) if entry_v and sl_v else None, aid
+    )
+    tp1_pips = price_to_pips(
+        abs(float(tp1_v) - float(entry_v)) if entry_v and tp1_v else None, aid
+    )
+    tp2_pips = price_to_pips(
+        abs(float(tp2_v) - float(entry_v)) if entry_v and tp2_v else None, aid
+    )
+    tp3_pips = price_to_pips(
+        abs(float(tp3_v) - float(entry_v)) if entry_v and tp3_v else None, aid
+    )
 
+    def _px_pips(price_s: str, pips) -> str:
+        return f"{price_s} · {pips} pips" if pips is not None else price_s
+
+    steps.append(f"Stop loss: {_px_pips(f(sl_v), sl_pips)} — exit if this breaks.")
     steps.append(
-        f"Take profits: TP1 {f(plan.get('take_profit_1'))} (close ~50%), "
-        f"TP2 {f(plan.get('take_profit_2'))}, TP3 {f(plan.get('take_profit_3'))}."
+        f"Take profits: TP1 {_px_pips(f(tp1_v), tp1_pips)} (close ~50%), "
+        f"TP2 {_px_pips(f(tp2_v), tp2_pips)}, TP3 {_px_pips(f(tp3_v), tp3_pips)}."
     )
     if plan.get("risk_reward"):
         steps.append(f"Risk:reward ≈ 1:{plan['risk_reward']}.")

@@ -686,14 +686,46 @@ def _format_telegram(alert: dict[str, Any]) -> str:
         lines.append(f"Grade: {alert['grade']}")
     if alert.get("session"):
         lines.append(f"Session: {alert['session']}")
-    if alert.get("entry") is not None:
-        lines.append(f"Entry: {alert['entry']}")
-    if alert.get("stop_loss") is not None:
-        lines.append(f"Stop: {alert['stop_loss']}")
-    if alert.get("take_profit_1") is not None:
-        lines.append(f"TP1: {alert['take_profit_1']}")
-    if alert.get("take_profit_2") is not None:
-        lines.append(f"TP2: {alert['take_profit_2']}")
+    entry = alert.get("entry")
+    sl = alert.get("stop_loss")
+    tp1 = alert.get("take_profit_1")
+    tp2 = alert.get("take_profit_2")
+    # Prefer explicit pip fields; else derive from asset if present
+    asset_id = alert.get("asset_id") or ""
+    try:
+        from analysis.coach import price_to_pips
+        sl_pips = alert.get("sl_pips")
+        tp1_pips = alert.get("tp1_pips")
+        tp2_pips = alert.get("tp2_pips")
+        if sl_pips is None and entry is not None and sl is not None and asset_id:
+            sl_pips = price_to_pips(abs(float(entry) - float(sl)), asset_id)
+        if tp1_pips is None and entry is not None and tp1 is not None and asset_id:
+            tp1_pips = price_to_pips(abs(float(tp1) - float(entry)), asset_id)
+        if tp2_pips is None and entry is not None and tp2 is not None and asset_id:
+            tp2_pips = price_to_pips(abs(float(tp2) - float(entry)), asset_id)
+    except Exception:
+        sl_pips = alert.get("sl_pips")
+        tp1_pips = alert.get("tp1_pips")
+        tp2_pips = alert.get("tp2_pips")
+
+    def _lvl(label: str, price, pips) -> str:
+        if price is None:
+            return ""
+        if pips is not None:
+            return f"{label}: {price} · {pips} pips"
+        return f"{label}: {price}"
+
+    if entry is not None:
+        lines.append(f"Entry: {entry}")
+    sl_line = _lvl("Stop", sl, sl_pips)
+    if sl_line:
+        lines.append(sl_line)
+    tp1_line = _lvl("TP1", tp1, tp1_pips)
+    if tp1_line:
+        lines.append(tp1_line)
+    tp2_line = _lvl("TP2", tp2, tp2_pips)
+    if tp2_line:
+        lines.append(tp2_line)
     if alert.get("price") is not None:
         lines.append(f"Live: {alert['price']}")
     if alert.get("reason"):

@@ -1323,9 +1323,11 @@ body.chart-fs-open { overflow: hidden; }
   color: var(--muted);
 }
 .al-box strong {
-  font-size: 1.1rem;
+  font-size: 0.98rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
 }
 .al-box.entry { border-color: rgba(34, 211, 238, 0.4); }
 .al-box.entry strong { color: var(--entry); }

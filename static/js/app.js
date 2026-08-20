@@ -80,13 +80,37 @@ function fmtPrice(v, decimals) {
   return Number(v).toFixed(decimals ?? ASSET.decimals);
 }
 
+/** Pip size by asset (price units per pip) */
+function pipSize(assetId) {
+  const id = (assetId || ASSET.id || "eurusd").toLowerCase();
+  if (id === "eurusd") return 0.0001;
+  if (id === "gold") return 0.1;
+  if (id === "bitcoin") return 1.0;
+  return 0.0001;
+}
+
+function priceToPips(distance, assetId) {
+  if (distance == null || Number.isNaN(Number(distance))) return null;
+  const pip = pipSize(assetId);
+  if (pip <= 0) return null;
+  return Math.round((Math.abs(Number(distance)) / pip) * 10) / 10;
+}
+
+/** e.g. "1.08500 · 25 pips" */
+function fmtPricePips(price, pips, decimals) {
+  const px = fmtPrice(price, decimals);
+  if (px === "—") return "—";
+  if (pips == null || Number.isNaN(Number(pips))) return px;
+  return `${px} · ${pips} pips`;
+}
+
 function renderDashboard(data) {
   const decimals = data.decimals ?? ASSET.decimals;
   renderQuote(data.quote, decimals);
   renderSignal(data);
   renderSimpleAction(data, decimals);
   renderNewsTrading(data);
-  renderTradePlan(data.trade_plan, data.exit_check, decimals);
+  renderTradePlan(data.trade_plan, data.exit_check, decimals, data.coach?.levels, data.asset_id);
   const tickFmt = data.chart_tick_format || ASSET.chartTickFormat;
   const plan = data.trade_plan;
   renderChart("chart-1h", data.charts["1h"], plan, tickFmt);
@@ -255,13 +279,51 @@ function renderSimpleAction(data, decimals) {
     stepsEl.innerHTML = steps.map((s) => `<li>${s}</li>`).join("");
   }
 
-  // Pip hints under levels
-  const slPips = levels.sl_pips;
-  const tp1Pips = levels.tp1_pips;
+  // Levels: price + pips (prefer coach levels; fall back to plan)
+  const entry = levels.entry ?? plan.entry;
+  const sl = levels.stop_loss ?? plan.stop_loss;
+  const tp1 = levels.take_profit_1 ?? plan.take_profit_1;
+  const tp2 = levels.take_profit_2 ?? plan.take_profit_2;
+  const tp3 = levels.take_profit_3 ?? plan.take_profit_3;
+  const aid = data.asset_id || ASSET.id;
+  const slPips = levels.sl_pips ?? priceToPips(
+    entry != null && sl != null ? Math.abs(Number(entry) - Number(sl)) : null, aid
+  );
+  const tp1Pips = levels.tp1_pips ?? priceToPips(
+    entry != null && tp1 != null ? Math.abs(Number(tp1) - Number(entry)) : null, aid
+  );
+  const tp2Pips = levels.tp2_pips ?? priceToPips(
+    entry != null && tp2 != null ? Math.abs(Number(tp2) - Number(entry)) : null, aid
+  );
+  const tp3Pips = levels.tp3_pips ?? priceToPips(
+    entry != null && tp3 != null ? Math.abs(Number(tp3) - Number(entry)) : null, aid
+  );
+
+  setText("tp-entry", fmt(entry));
+  setText("tp-sl", fmtPricePips(sl, slPips, decimals));
+  setText("tp-tp1", fmtPricePips(tp1, tp1Pips, decimals));
+  setText("tp-tp2", fmtPricePips(tp2, tp2Pips, decimals));
+  setText("tp-tp3", fmtPricePips(tp3, tp3Pips, decimals));
+  setText("tp-rr", (levels.risk_reward ?? plan.risk_reward)
+    ? "1:" + (levels.risk_reward ?? plan.risk_reward)
+    : "—");
+
+  const entryHint = document.getElementById("tp-entry-hint");
   const slHint = document.getElementById("tp-sl-hint");
   const tp1Hint = document.getElementById("tp-tp1-hint");
-  if (slHint) slHint.textContent = slPips != null ? `~${slPips} pips` : "";
-  if (tp1Hint) tp1Hint.textContent = tp1Pips != null ? `~${tp1Pips} pips` : "";
+  const tp2Hint = document.getElementById("tp-tp2-hint");
+  const tp3Hint = document.getElementById("tp-tp3-hint");
+  if (entryHint) entryHint.textContent = entry != null ? "price" : "";
+  if (slHint) {
+    slHint.textContent = slPips != null
+      ? `${slPips} pips from entry` + (levels.sl_pips_from_price != null
+        ? ` · ${levels.sl_pips_from_price} from live`
+        : "")
+      : "";
+  }
+  if (tp1Hint) tp1Hint.textContent = tp1Pips != null ? `${tp1Pips} pips from entry` : "";
+  if (tp2Hint) tp2Hint.textContent = tp2Pips != null ? `${tp2Pips} pips from entry` : "";
+  if (tp3Hint) tp3Hint.textContent = tp3Pips != null ? `${tp3Pips} pips from entry` : "";
 
   const sizeNote = document.getElementById("action-size-note");
   if (sizeNote) {
@@ -467,15 +529,43 @@ function formatTrend(t) {
   return t.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function renderTradePlan(plan, exitCheck, decimals) {
+function renderTradePlan(plan, exitCheck, decimals, coachLevels, assetId) {
   const fmt = (v) => fmtPrice(v, decimals);
   plan = plan || {};
-  setText("tp-entry", fmt(plan.entry));
-  setText("tp-sl", fmt(plan.stop_loss));
-  setText("tp-tp1", fmt(plan.take_profit_1));
-  setText("tp-tp2", fmt(plan.take_profit_2));
-  setText("tp-tp3", fmt(plan.take_profit_3));
-  setText("tp-rr", plan.risk_reward ? "1:" + plan.risk_reward : "—");
+  const lv = coachLevels || {};
+  const aid = assetId || ASSET.id;
+  const entry = lv.entry ?? plan.entry;
+  const sl = lv.stop_loss ?? plan.stop_loss;
+  const tp1 = lv.take_profit_1 ?? plan.take_profit_1;
+  const tp2 = lv.take_profit_2 ?? plan.take_profit_2;
+  const tp3 = lv.take_profit_3 ?? plan.take_profit_3;
+  const slPips = lv.sl_pips ?? priceToPips(
+    entry != null && sl != null ? Math.abs(Number(entry) - Number(sl)) : null, aid
+  );
+  const tp1Pips = lv.tp1_pips ?? priceToPips(
+    entry != null && tp1 != null ? Math.abs(Number(tp1) - Number(entry)) : null, aid
+  );
+  const tp2Pips = lv.tp2_pips ?? priceToPips(
+    entry != null && tp2 != null ? Math.abs(Number(tp2) - Number(entry)) : null, aid
+  );
+  const tp3Pips = lv.tp3_pips ?? priceToPips(
+    entry != null && tp3 != null ? Math.abs(Number(tp3) - Number(entry)) : null, aid
+  );
+  // Main action card may already be filled by renderSimpleAction; keep detail panel in sync
+  setText("tp-entry", fmt(entry));
+  setText("tp-sl", fmtPricePips(sl, slPips, decimals));
+  setText("tp-tp1", fmtPricePips(tp1, tp1Pips, decimals));
+  setText("tp-tp2", fmtPricePips(tp2, tp2Pips, decimals));
+  setText("tp-tp3", fmtPricePips(tp3, tp3Pips, decimals));
+  setText("tp-rr", (lv.risk_reward ?? plan.risk_reward) ? "1:" + (lv.risk_reward ?? plan.risk_reward) : "—");
+  const slHint = document.getElementById("tp-sl-hint");
+  const tp1Hint = document.getElementById("tp-tp1-hint");
+  const tp2Hint = document.getElementById("tp-tp2-hint");
+  const tp3Hint = document.getElementById("tp-tp3-hint");
+  if (slHint && slPips != null) slHint.textContent = `${slPips} pips from entry`;
+  if (tp1Hint && tp1Pips != null) tp1Hint.textContent = `${tp1Pips} pips from entry`;
+  if (tp2Hint && tp2Pips != null) tp2Hint.textContent = `${tp2Pips} pips from entry`;
+  if (tp3Hint && tp3Pips != null) tp3Hint.textContent = `${tp3Pips} pips from entry`;
   setText("entry-trigger", plan.entry_trigger || "—");
   setText("exit-trigger", plan.exit_trigger || "—");
 
