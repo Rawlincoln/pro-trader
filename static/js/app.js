@@ -113,40 +113,95 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 
-/** A+ 3-step bias → liquidity → SFP panel */
+/** A+ 3-step bias → liquidity → SFP panel + FTMO TAKE/SKIP */
 function renderAPlus(data) {
   const ap = data.a_plus;
+  const ftmo = data.ftmo || {};
   const badge = document.getElementById("a-plus-badge");
   const biasEl = document.getElementById("ap-bias");
   const liqEl = document.getElementById("ap-liq");
   const sfpEl = document.getElementById("ap-sfp");
   const notesEl = document.getElementById("ap-notes");
+  const pill = document.getElementById("ftmo-pill");
+  const phaseEl = document.getElementById("ftmo-phase");
+  const rulesEl = document.getElementById("ftmo-rules");
+  const checksEl = document.getElementById("ftmo-checks");
+  const sizeEl = document.getElementById("ftmo-size");
   if (!biasEl) return;
+
   if (!ap) {
     if (badge) badge.textContent = "warming up";
     biasEl.textContent = "—";
     if (liqEl) liqEl.textContent = "—";
     if (sfpEl) sfpEl.textContent = "—";
     if (notesEl) notesEl.textContent = "";
-    return;
+  } else {
+    const steps = ap.steps || {};
+    const sfp = ap.sfp || {};
+    const sig = (data.signal || ap.signal || "WAIT").toUpperCase();
+    if (badge) {
+      if (ftmo.enabled && ftmo.take) {
+        badge.textContent = `FTMO TAKE · ${sig}`;
+        badge.className = "a-plus-badge " + (sig === "BUY" ? "buy" : "sell");
+      } else if (ftmo.enabled) {
+        badge.textContent = `FTMO SKIP · ${(ap.bias || {}).bias || "wait"}`;
+        badge.className = "a-plus-badge wait";
+      } else {
+        badge.textContent = sfp.detected && sfp.aligned_with_bias
+          ? `SFP ${sfp.quality || ""} → ${sig}`
+          : `${(ap.bias || {}).bias || "neutral"} bias`;
+        badge.className = "a-plus-badge " + (
+          sig === "BUY" ? "buy" : sig === "SELL" ? "sell" : "wait"
+        );
+      }
+    }
+    biasEl.textContent = steps["1_bias"] || "—";
+    if (liqEl) liqEl.textContent = steps["2_liquidity"] || "—";
+    if (sfpEl) sfpEl.textContent = steps["3_sfp"] || "—";
+    if (notesEl) {
+      const notes = ap.notes || [];
+      const blocked = (ftmo.reasons_block || []).slice(0, 2);
+      notesEl.textContent = [
+        ...notes.slice(0, 3),
+        ...(blocked.length ? ["Blocked: " + blocked.join("; ")] : []),
+      ].join(" · ");
+    }
   }
-  const steps = ap.steps || {};
-  const sfp = ap.sfp || {};
-  const sig = (ap.signal || "WAIT").toUpperCase();
-  if (badge) {
-    badge.textContent = sfp.detected && sfp.aligned_with_bias
-      ? `SFP ${sfp.quality || ""} → ${sig}`
-      : `${(ap.bias || {}).bias || "neutral"} bias`;
-    badge.className = "a-plus-badge " + (
-      sig === "BUY" ? "buy" : sig === "SELL" ? "sell" : "wait"
-    );
+
+  // FTMO card
+  if (pill) {
+    if (!ftmo.enabled) {
+      pill.textContent = "FTMO off";
+      pill.className = "ftmo-pill off";
+    } else if (ftmo.take) {
+      pill.textContent = "FTMO TAKE";
+      pill.className = "ftmo-pill take";
+    } else {
+      pill.textContent = ftmo.verdict === "WAIT" ? "FTMO WAIT" : "FTMO SKIP";
+      pill.className = "ftmo-pill skip";
+    }
   }
-  biasEl.textContent = steps["1_bias"] || "—";
-  if (liqEl) liqEl.textContent = steps["2_liquidity"] || "—";
-  if (sfpEl) sfpEl.textContent = steps["3_sfp"] || "—";
-  if (notesEl) {
-    const notes = ap.notes || [];
-    notesEl.textContent = notes.slice(0, 4).join(" · ");
+  if (phaseEl) {
+    const p = ftmo.profile || {};
+    phaseEl.textContent = ftmo.enabled
+      ? `${p.phase_label || ""} · $${Number(p.account_size || 25000).toLocaleString()} · cTrader`
+      : "";
+  }
+  if (rulesEl) {
+    const lines = ftmo.rules_card || [];
+    rulesEl.innerHTML = lines.map((l) => `<div class="ftmo-rule-line">${l}</div>`).join("");
+  }
+  if (checksEl) {
+    const checks = ftmo.checklist || [];
+    checksEl.innerHTML = checks
+      .map((c) => `<span class="ftmo-check ${c.ok ? "ok" : "no"}">${c.ok ? "✓" : "✗"} ${c.label}</span>`)
+      .join("");
+  }
+  if (sizeEl) {
+    const s = ftmo.sizing || {};
+    sizeEl.textContent = ftmo.take && s.note
+      ? s.note
+      : (ftmo.enabled ? "No FTMO-legal entry — do not trade this signal on cTrader" : "");
   }
 }
 

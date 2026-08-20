@@ -45,6 +45,10 @@ DEFAULT_CONFIG = {
     "move_sl_to_breakeven_at_tp1": True,
     "close_on_signal_reversal": True,
     "skip_high_impact_events": True,
+    # FTMO Standard 2-step guard (maps A+ panel → challenge-legal TAKE only)
+    "ftmo_mode": True,
+    "ftmo_account_size": 25000,
+    "ftmo_phase": "challenge",  # challenge | verification
 }
 
 
@@ -79,6 +83,20 @@ def _merge_env_config(cfg: dict) -> dict:
     auto = _env("MYFXBOOK_AUTO_SYNC")
     if auto:
         cfg["myfxbook_auto_sync"] = auto.lower() in ("1", "true", "yes", "on")
+    if os.environ.get("FTMO_MODE") is not None:
+        cfg["ftmo_mode"] = str(os.environ.get("FTMO_MODE", "")).strip().lower() in (
+            "1", "true", "yes", "on",
+        )
+    if _env("FTMO_ACCOUNT_SIZE"):
+        try:
+            cfg["ftmo_account_size"] = float(_env("FTMO_ACCOUNT_SIZE"))
+        except ValueError:
+            pass
+    if _env("FTMO_PHASE"):
+        phase = _env("FTMO_PHASE").lower()
+        cfg["ftmo_phase"] = (
+            "verification" if phase in ("verification", "phase2") else "challenge"
+        )
     return cfg
 
 

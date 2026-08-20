@@ -82,15 +82,22 @@
 
     <section class="card a-plus-card au-panel" id="a-plus-card">
       <div class="a-plus-header">
-        <h2>A+ 3-step framework</h2>
+        <h2>A+ 3-step · FTMO filter</h2>
         <span class="a-plus-badge" id="a-plus-badge">—</span>
       </div>
-      <p class="a-plus-sub">Bias → Liquidity (PDH/PDL/session) → Swing Failure Pattern</p>
+      <p class="a-plus-sub">Bias → Liquidity (PDH/PDL/session) → Swing Failure · only FTMO-legal TAKE alerts</p>
+      <div class="ftmo-verdict" id="ftmo-verdict">
+        <span class="ftmo-pill" id="ftmo-pill">FTMO —</span>
+        <span class="ftmo-phase" id="ftmo-phase"></span>
+      </div>
       <ol class="a-plus-steps">
         <li><strong>1. Bias</strong> <span id="ap-bias">—</span></li>
         <li><strong>2. Liquidity</strong> <span id="ap-liq">—</span></li>
         <li><strong>3. SFP</strong> <span id="ap-sfp">—</span></li>
       </ol>
+      <div class="ftmo-rules" id="ftmo-rules"></div>
+      <div class="ftmo-checks" id="ftmo-checks"></div>
+      <p class="ftmo-size" id="ftmo-size"></p>
       <p class="a-plus-note" id="ap-notes"></p>
     </section>
 
@@ -328,6 +335,6 @@
   <script src="/static/js/chart-tools.js?v=5"></script>
   <script src="/static/js/trade-alerts.js?v=6"></script>
   <script src="/static/js/signal-audit.js?v=1"></script>
-  <script src="/static/js/app.js?v=17"></script>
+  <script src="/static/js/app.js?v=18"></script>
 </body>
 </html>

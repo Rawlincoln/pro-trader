@@ -961,6 +961,51 @@ body.chart-fs-open { overflow: hidden; }
 }
 .a-plus-steps li { margin-bottom: 0.25rem; }
 .a-plus-note { font-size: 0.78rem; color: var(--muted); margin: 0.55rem 0 0; }
+.ftmo-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.35rem 0 0.55rem;
+}
+.ftmo-pill {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+}
+.ftmo-pill.take { background: rgba(34, 197, 94, 0.25); color: var(--buy, #22c55e); }
+.ftmo-pill.skip { background: rgba(239, 68, 68, 0.2); color: var(--sell, #ef4444); }
+.ftmo-pill.off { opacity: 0.7; }
+.ftmo-phase { font-size: 0.78rem; color: var(--muted); }
+.ftmo-rules {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0.4rem 0;
+  display: grid;
+  gap: 0.15rem;
+}
+.ftmo-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0;
+}
+.ftmo-check {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.35);
+}
+.ftmo-check.ok { color: var(--buy, #22c55e); }
+.ftmo-check.no { color: var(--sell, #ef4444); opacity: 0.9; }
+.ftmo-size {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin: 0.35rem 0 0;
+}
 
 /* Signal accuracy audit */
 .signal-audit-panel {

@@ -66,6 +66,7 @@ from data.signal_audit import (
     maybe_log_signal,
     run_daily_audit_cycle,
 )
+from data.ftmo_mode import apply_ftmo_gate, ftmo_enabled, ftmo_telegram_suffix, load_ftmo_profile
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -359,6 +360,84 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
                     a_plus=a_plus,
                 )
 
+        # FTMO Standard 2-step gate ($25k): only A+ legal setups remain TAKE
+        ftmo_eval: dict = {"enabled": False}
+        try:
+            agent_cfg = load_agent_config()
+            prev_ftmo_sig = final_signal
+            final_signal, final_conf, ftmo_eval, ftmo_notes = apply_ftmo_gate(
+                asset_id=asset_id,
+                signal=final_signal,
+                confidence=float(final_conf or 0),
+                trade_plan=trade_plan,
+                a_plus=a_plus,
+                coach=coach,
+                calendar_risk=cal_risk,
+                config=agent_cfg,
+            )
+            fundamental_notes.extend(ftmo_notes)
+            if final_signal != prev_ftmo_sig and final_signal == "WAIT":
+                trade_plan = generate_trade_plan(
+                    signal="WAIT",
+                    price=float(price or 0),
+                    atr=atr_val,
+                    levels_1h=full["analysis_1h"]["levels"],
+                    levels_4h=full["analysis_4h"]["levels"],
+                    confidence=float(final_conf or 0),
+                    asset_id=asset_id,
+                    user_sr=user_sr,
+                )
+                coach = build_coach_card(
+                    asset_id=asset_id,
+                    signal="WAIT",
+                    confidence=float(final_conf or 0),
+                    trade_plan=trade_plan,
+                    exit_check=exit_check,
+                    technical=tech_for_coach,
+                    calendar_risk=cal_risk,
+                    user_sr=user_sr,
+                    news_sentiment=news_sent,
+                    signal_source="ftmo_gate",
+                    equity=equity,
+                    risk_percent=float((ftmo_eval.get("profile") or {}).get("risk_per_trade_pct") or risk_pct),
+                    a_plus=a_plus,
+                )
+            elif ftmo_eval.get("take"):
+                # Prefer FTMO risk % for sizing display
+                coach = build_coach_card(
+                    asset_id=asset_id,
+                    signal=final_signal,
+                    confidence=float(final_conf or 0),
+                    trade_plan=trade_plan,
+                    exit_check=exit_check,
+                    technical=tech_for_coach,
+                    calendar_risk=cal_risk,
+                    user_sr=user_sr,
+                    news_sentiment=news_sent,
+                    signal_source=signal_source,
+                    equity=float((ftmo_eval.get("profile") or {}).get("account_size") or equity),
+                    risk_percent=float((ftmo_eval.get("profile") or {}).get("risk_per_trade_pct") or 0.45),
+                    a_plus=a_plus,
+                )
+                if coach.get("sizing") is not None and (ftmo_eval.get("sizing") or {}).get("lots") is not None:
+                    coach = {
+                        **coach,
+                        "sizing": {
+                            **(coach.get("sizing") or {}),
+                            **ftmo_eval["sizing"],
+                            "ftmo": True,
+                        },
+                        "verb": f"FTMO TAKE — {final_signal}",
+                        "plain": (
+                            f"Challenge-legal {final_signal} on {asset['name']}. "
+                            f"Risk ${(ftmo_eval.get('profile') or {}).get('risk_per_trade_usd', 0):.0f} "
+                            f"on cTrader. Soft day stop "
+                            f"${(ftmo_eval.get('profile') or {}).get('soft_daily_stop_usd', 0):.0f}."
+                        ),
+                    }
+        except Exception as ftmo_exc:
+            logger.debug("FTMO gate skip: %s", ftmo_exc)
+
         result = {
             "asset_id": asset_id,
             "asset_name": asset["name"],
@@ -378,6 +457,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
             "fundamental_notes": fundamental_notes,
             "attention_liquidity": attention_liquidity,
             "a_plus": a_plus,
+            "ftmo": ftmo_eval,
             "analysis_1h": _serialize_analysis(full["analysis_1h"], final_signal),
             "analysis_4h": _serialize_analysis(full["analysis_4h"], final_signal),
             "trade_plan": trade_plan,
@@ -474,11 +554,15 @@ def _process_trade_alerts(asset_id: str, data: dict) -> None:
         try:
             ap = data.get("a_plus") or {}
             sfp = ap.get("sfp") or {}
+            ftmo = data.get("ftmo") or {}
+            # In FTMO mode only broadcast when verdict is TAKE
+            ftmo_blocks = ftmo_enabled() and ftmo.get("enabled") and not ftmo.get("take")
             if (
-                sfp.get("detected")
+                not ftmo_blocks
+                and sfp.get("detected")
                 and sfp.get("aligned_with_bias")
                 and sfp.get("quality") in ("A", "B")
-                and (ap.get("signal") in ("BUY", "SELL"))
+                and (ap.get("signal") in ("BUY", "SELL") or (data.get("signal") in ("BUY", "SELL")))
             ):
                 from datetime import datetime, timezone
                 key = f"sfp:{asset_id}:{sfp.get('side')}:{sfp.get('level')}"
@@ -486,18 +570,21 @@ def _process_trade_alerts(asset_id: str, data: dict) -> None:
                 last = getattr(_process_trade_alerts, "_sfp_cd", {})
                 if now - float(last.get(key) or 0) >= 7200:
                     asset = get_asset(asset_id)
+                    sig = data.get("signal") or ap.get("signal")
+                    msg = (
+                        f"A+ SFP {sfp.get('quality')} · {sig} {asset['name']}\n"
+                        f"{sfp.get('reason')}\n"
+                        f"Stop {sfp.get('stop')} · Target {sfp.get('target')}"
+                    )
+                    msg += ftmo_telegram_suffix(ftmo)
                     sfp_alert = {
                         "id": key,
                         "asset_id": asset_id,
                         "asset_name": asset["name"],
                         "asset_route": asset.get("route") or "/",
                         "type": "entry",
-                        "signal": ap.get("signal"),
-                        "message": (
-                            f"A+ SFP {sfp.get('quality')} · {ap.get('signal')} {asset['name']}\n"
-                            f"{sfp.get('reason')}\n"
-                            f"Stop {sfp.get('stop')} · Target {sfp.get('target')}"
-                        ),
+                        "signal": sig,
+                        "message": msg,
                         "urgency": "immediate" if sfp.get("quality") == "A" else "high",
                         "confidence": float(data.get("confidence") or ap.get("confidence") or 0),
                         "price": sfp.get("entry") or (data.get("quote") or {}).get("price"),
@@ -505,12 +592,18 @@ def _process_trade_alerts(asset_id: str, data: dict) -> None:
                         "stop_loss": sfp.get("stop"),
                         "take_profit_1": sfp.get("target"),
                         "grade": (data.get("coach") or {}).get("grade", {}).get("letter"),
-                        "reason": "A+ 3-step: bias + liquidity sweep + swing failure",
+                        "reason": "FTMO-legal A+ SFP" if ftmo.get("take") else "A+ 3-step SFP",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                     alerts = list(alerts or []) + [sfp_alert]
                     last[key] = now
                     _process_trade_alerts._sfp_cd = last
+            # Drop directional noise when FTMO mode is on and setup is not TAKE (keep exits)
+            if ftmo_enabled() and ftmo.get("enabled") and not ftmo.get("take"):
+                alerts = [
+                    a for a in (alerts or [])
+                    if (a.get("type") or "") in ("exit", "exit_partial")
+                ]
         except Exception as sfp_exc:
             logger.debug("A+ SFP alert skip: %s", sfp_exc)
         if alerts:

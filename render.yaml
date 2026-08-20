@@ -30,6 +30,12 @@ services:
         sync: false
       - key: TELEGRAM_ENABLED
         value: "true"
+      - key: FTMO_MODE
+        value: "true"
+      - key: FTMO_ACCOUNT_SIZE
+        value: "25000"
+      - key: FTMO_PHASE
+        value: "challenge"
       - key: MYFXBOOK_EMAIL
         sync: false
       - key: MYFXBOOK_PASSWORD
