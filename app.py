@@ -67,7 +67,6 @@ from data.signal_audit import (
     run_daily_audit_cycle,
 )
 from data.ftmo_mode import apply_ftmo_gate, ftmo_enabled, ftmo_telegram_suffix, load_ftmo_profile
-from data.investments import build_investments_snapshot
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1061,18 +1060,6 @@ def balance_page():
     resp = app.make_response(render_template("balance.html", assets=list_assets()))
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return resp
-
-
-@app.route("/investments")
-def investments_page():
-    resp = app.make_response(render_template("investments.html", assets=list_assets()))
-    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    return resp
-
-
-@app.route("/api/investments")
-def api_investments():
-    return jsonify(build_investments_snapshot())
 
 
 @app.route("/api/mt5/status")

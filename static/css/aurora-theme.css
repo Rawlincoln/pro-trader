@@ -849,67 +849,6 @@ body.aurora.balance-page .bs-hero-sub,
 body.aurora.balance-page .bs-hero-meta { color: var(--au-muted); }
 body.aurora.balance-page h1 { color: var(--au-text); }
 
-/* Investments page — same aurora chrome as balance */
-body.aurora.investments-page {
-  background: var(--au-bg);
-  color: var(--au-text);
-}
-body.aurora.investments-page .header,
-body.aurora.investments-page main,
-body.aurora.investments-page .footer {
-  position: relative;
-  z-index: 1;
-}
-body.aurora.investments-page .card {
-  background: linear-gradient(150deg, rgba(56, 189, 248, 0.08), rgba(12, 20, 40, 0.5), rgba(129, 140, 248, 0.1));
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  border: 1px solid rgba(120, 200, 255, 0.15);
-  border-radius: 24px;
-  box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(180, 230, 255, 0.12);
-}
-body.aurora.investments-page .bs-metric {
-  background: rgba(20, 40, 70, 0.45);
-  border: 1px solid rgba(100, 180, 255, 0.15);
-  border-radius: 16px;
-  box-shadow: inset 0 1px 0 rgba(160, 210, 255, 0.1);
-}
-body.aurora.investments-page .bs-hero-pnl.up { color: var(--au-buy); }
-body.aurora.investments-page .bs-hero-pnl.down { color: var(--au-sell); }
-body.aurora.investments-page .subtitle,
-body.aurora.investments-page .bs-hero-sub,
-body.aurora.investments-page .bs-hero-meta,
-body.aurora.investments-page .inv-chart-note,
-body.aurora.investments-page .inv-card-note,
-body.aurora.investments-page .inv-roi { color: var(--au-muted); }
-body.aurora.investments-page .inv-card {
-  background: linear-gradient(160deg, rgba(60, 140, 200, 0.14) 0%, rgba(20, 30, 55, 0.5) 100%);
-  border: 1px solid rgba(120, 200, 255, 0.15);
-  box-shadow:
-    0 6px 20px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(180, 230, 255, 0.15);
-}
-body.aurora.investments-page .inv-card-highlight {
-  border-color: rgba(255, 107, 157, 0.45);
-  box-shadow:
-    0 0 28px rgba(255, 107, 157, 0.12),
-    inset 0 1px 0 rgba(255, 180, 200, 0.18);
-}
-body.aurora.investments-page .inv-lev {
-  color: #d4c0ff;
-  border-color: rgba(167, 139, 250, 0.35);
-  background: rgba(20, 40, 70, 0.5);
-}
-body.aurora.investments-page .inv-pnl.up {
-  color: var(--au-buy);
-  text-shadow: 0 0 14px rgba(61, 255, 168, 0.35);
-}
-body.aurora.investments-page .inv-pnl.down { color: var(--au-sell); }
-body.aurora.investments-page .inv-card h3 { color: var(--au-text); }
-body.aurora.investments-page .footer p { color: var(--au-muted); }
-
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   body.aurora .action-card,
   body.aurora .card,
