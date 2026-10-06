@@ -3,21 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0B1210">
   <title>{{ asset.title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=17">
-  <link rel="stylesheet" href="/static/css/aurora-theme.css?v=2">
+  <link rel="icon" href="/static/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/style.css?v=18">
+  <link rel="stylesheet" href="/static/css/ledger-theme.css?v=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 </head>
-<body class="asset-{{ asset.id }} simple-ui aurora">
-  <header class="header simple-header au-bar">
+<body class="asset-{{ asset.id }} simple-ui ledger">
+  <a class="skip" href="#action-card">Skip to signal</a>
+  <div class="gl-banner">
+    <div class="gl-banner-inner">
+      <span>Live scan · {{ asset.name }}</span>
+      <span>Educational · not financial advice</span>
+    </div>
+  </div>
+  <header class="header simple-header gl-bar">
     <div class="header-left">
-      <div class="brand-soft">
-        <span class="brand-name">Pro Trader</span>
-      </div>
-      <nav class="nav-tabs">
+      <a class="gl-brand" href="/">
+        <img src="/static/mark.svg" width="28" height="28" alt="">
+        Pro<b>Trader</b>
+      </a>
+      <nav class="nav-tabs" aria-label="Markets">
         {% for a in assets %}
         <a href="{{ a.route }}" class="nav-tab{% if a.id == active_asset %} active{% endif %}">{{ a.name }}</a>
         {% endfor %}
@@ -25,7 +36,7 @@
       </nav>
     </div>
     <div class="header-right simple-price">
-      <div class="au-price-well">
+      <div class="au-price-well gl-price">
         <span class="lcd-label">Live price</span>
         <span id="live-price" class="price lcd-digits">—</span>
         <span id="price-change" class="change">—</span>
@@ -330,6 +341,12 @@
     <button id="refresh-btn" class="refresh-btn au-btn">Refresh analysis</button>
     <p>Educational only · Not financial advice · Trading is risky</p>
   </footer>
+  <nav class="gl-mobile-nav" aria-label="Mobile">
+    {% for a in assets %}
+    <a href="{{ a.route }}" class="{% if a.id == active_asset %}active{% endif %}">{{ a.name }}</a>
+    {% endfor %}
+    <a href="/balance">Balance</a>
+  </nav>
 
   <script>
     window.ASSET = {
@@ -344,6 +361,6 @@
   <script src="/static/js/chart-tools.js?v=5"></script>
   <script src="/static/js/trade-alerts.js?v=6"></script>
   <script src="/static/js/signal-audit.js?v=1"></script>
-  <script src="/static/js/app.js?v=20"></script>
+  <script src="/static/js/app.js?v=21"></script>
 </body>
 </html>

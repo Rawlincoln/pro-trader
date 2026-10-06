@@ -747,33 +747,33 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
     name: "Price",
     xaxis: "x",
     yaxis: "y",
-    increasing: { line: { color: "#10b981" } },
-    decreasing: { line: { color: "#ef4444" } },
+    increasing: { line: { color: "#2db864" } },
+    decreasing: { line: { color: "#ce1126" } },
   }];
 
   const ind = chartData.indicators;
   if (ind?.ema_20) {
     traces.push({
       type: "scatter", mode: "lines", x: ind.times, y: ind.ema_20,
-      name: "EMA 20", line: { color: "#3b82f6", width: 1.5 }, xaxis: "x", yaxis: "y",
+      name: "EMA 20", line: { color: "#9cbcff", width: 1.5 }, xaxis: "x", yaxis: "y",
     });
   }
   if (ind?.ema_50) {
     traces.push({
       type: "scatter", mode: "lines", x: ind.times, y: ind.ema_50,
-      name: "EMA 50", line: { color: "#f59e0b", width: 1.5 }, xaxis: "x", yaxis: "y",
+      name: "EMA 50", line: { color: "#d4a017", width: 1.5 }, xaxis: "x", yaxis: "y",
     });
   }
   if (ind?.vwap?.length) {
     traces.push({
       type: "scatter", mode: "lines", x: ind.times, y: ind.vwap,
-      name: "VWAP", line: { color: "#a78bfa", width: 1, dash: "dot" }, xaxis: "x", yaxis: "y",
+      name: "VWAP", line: { color: "#c5a8ff", width: 1, dash: "dot" }, xaxis: "x", yaxis: "y",
     });
   }
 
   if (hasVolume) {
     const volColors = candles.map((c, i) =>
-      i > 0 && c.close >= candles[i - 1].close ? "rgba(16,185,129,0.5)" : "rgba(239,68,68,0.5)"
+      i > 0 && c.close >= candles[i - 1].close ? "rgba(45,184,100,0.5)" : "rgba(206,17,38,0.5)"
     );
     traces.push({
       type: "bar", x: times, y: candles.map(c => c.volume),
@@ -793,13 +793,13 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
     });
   };
 
-  addHLine(tradePlan?.entry, "#22d3ee", "dot");
-  addHLine(tradePlan?.stop_loss, "#ef4444", "dash");
-  addHLine(tradePlan?.take_profit_2, "#10b981", "dash");
+  addHLine(tradePlan?.entry, "#9cbcff", "dot");
+  addHLine(tradePlan?.stop_loss, "#ce1126", "dash");
+  addHLine(tradePlan?.take_profit_2, "#2db864", "dash");
 
   const levels = chartData.levels || {};
-  (levels.support || []).slice(-2).forEach(s => addHLine(s, "rgba(16,185,129,0.4)", "dot"));
-  (levels.resistance || []).slice(0, 2).forEach(r => addHLine(r, "rgba(239,68,68,0.4)", "dot"));
+  (levels.support || []).slice(-2).forEach(s => addHLine(s, "rgba(45,184,100,0.4)", "dot"));
+  (levels.resistance || []).slice(0, 2).forEach(r => addHLine(r, "rgba(206,17,38,0.4)", "dot"));
   if (levels.fibonacci?.fib_618) addHLine(levels.fibonacci.fib_618, "rgba(168,85,247,0.5)", "dashdot");
   if (levels.fibonacci?.fib_382) addHLine(levels.fibonacci.fib_382, "rgba(168,85,247,0.35)", "dashdot");
 
@@ -807,11 +807,11 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
 
   const isFullscreen = containerId === "chart-fullscreen-plot";
   const layout = {
-    paper_bgcolor: "#111827",
-    plot_bgcolor: "#111827",
-    font: { color: "#94a3b8", size: 11 },
-    xaxis: { gridcolor: "#1e293b", rangeslider: { visible: false }, domain: hasVolume ? [0, 1] : [0, 1] },
-    yaxis: { gridcolor: "#1e293b", tickformat: tickFormat, side: "right", domain: hasVolume ? [0.32, 1] : [0, 1] },
+    paper_bgcolor: "#07110d",
+    plot_bgcolor: "#07110d",
+    font: { color: "#9aa89e", family: "IBM Plex Sans, Segoe UI, sans-serif", size: 11 },
+    xaxis: { gridcolor: "rgba(244,241,234,0.1)", rangeslider: { visible: false }, domain: hasVolume ? [0, 1] : [0, 1] },
+    yaxis: { gridcolor: "rgba(244,241,234,0.1)", tickformat: tickFormat, side: "right", domain: hasVolume ? [0.32, 1] : [0, 1] },
     margin: { l: 10, r: 60, t: isFullscreen ? 20 : 10, b: 30 },
     legend: { orientation: "h", y: 1.08, font: { size: 10 } },
     shapes,
@@ -821,7 +821,7 @@ function renderChart(containerId, chartData, tradePlan, tickFormat) {
 
   if (hasVolume) {
     layout.yaxis2 = {
-      domain: [0, 0.22], gridcolor: "#1e293b", showticklabels: false,
+      domain: [0, 0.22], gridcolor: "rgba(244,241,234,0.1)", showticklabels: false,
     };
   }
 

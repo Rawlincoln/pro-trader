@@ -115,15 +115,15 @@ function renderChart(daily) {
     type: "scatter",
     mode: "lines",
     fill: "tozeroy",
-    line: { color: "#8b5cf6", width: 2 },
-    fillcolor: "rgba(139,92,246,0.15)",
+    line: { color: "#2db864", width: 2 },
+    fillcolor: "rgba(31,138,76,0.18)",
   }], {
     margin: { t: 10, r: 20, b: 40, l: 50 },
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
-    font: { color: "#94a3b8" },
-    xaxis: { gridcolor: "#1e293b" },
-    yaxis: { gridcolor: "#1e293b", title: "Cumulative P&L" },
+    font: { color: "#9aa89e", family: "IBM Plex Sans, Segoe UI, sans-serif" },
+    xaxis: { gridcolor: "rgba(244,241,234,0.1)" },
+    yaxis: { gridcolor: "rgba(244,241,234,0.1)", title: "Cumulative P&L" },
   }, { responsive: true, displayModeBar: false });
 }
 
