@@ -276,6 +276,18 @@ function renderSimpleAction(data, decimals) {
   setText("action-plain", plain);
   setText("action-conf-value", conf ? `${conf.toFixed(0)}%` : "—");
 
+  const trend = String(data.primary_trend || "").toLowerCase();
+  let bias = "neutral";
+  if (signal === "BUY") bias = "bullish";
+  else if (signal === "SELL") bias = "bearish";
+  else if (trend.includes("bull")) bias = "bullish";
+  else if (trend.includes("bear")) bias = "bearish";
+  const biasLabel = bias === "bullish" ? "Bullish" : bias === "bearish" ? "Bearish" : "Neutral";
+  setText("action-conf-label", `${biasLabel} confidence`);
+  setText("action-conf-bias", biasLabel);
+  const confBox = document.getElementById("action-conf");
+  if (confBox) confBox.className = "action-conf au-orb bias-" + bias;
+
   // Grade + session badges
   const metaEl = document.getElementById("action-meta");
   if (metaEl) {

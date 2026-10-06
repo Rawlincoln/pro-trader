@@ -287,6 +287,21 @@ body.ledger .action-conf-value {
   color: var(--gl-paper);
   text-shadow: none;
 }
+body.ledger .action-conf-bias {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gl-muted);
+  margin-top: 2px;
+}
+body.ledger .action-conf.bias-bullish .action-conf-value,
+body.ledger .action-conf.bias-bullish .action-conf-bias { color: var(--gl-green-2); }
+body.ledger .action-conf.bias-bearish .action-conf-value,
+body.ledger .action-conf.bias-bearish .action-conf-bias { color: #ff8a96; }
+body.ledger .action-conf.bias-bullish { border-color: rgba(45, 184, 100, 0.4); }
+body.ledger .action-conf.bias-bearish { border-color: rgba(206, 17, 38, 0.4); }
 
 body.ledger .grade-badge,
 body.ledger .session-badge,

@@ -1243,6 +1243,18 @@ body.chart-fs-open { overflow: hidden; }
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+.action-conf-bias {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.action-conf.bias-bullish .action-conf-bias,
+.action-conf.bias-bullish .action-conf-value { color: var(--buy); }
+.action-conf.bias-bearish .action-conf-bias,
+.action-conf.bias-bearish .action-conf-value { color: var(--sell); }
 .action-meta {
   display: flex;
   flex-wrap: wrap;
