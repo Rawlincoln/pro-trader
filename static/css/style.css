@@ -1472,3 +1472,99 @@ body.chart-fs-open { overflow: hidden; }
   .ind-grid { grid-template-columns: repeat(2, 1fr); }
   .signal-main { flex-direction: column; align-items: flex-start; }
 }
+
+/* Leveraged investments page */
+.investments-page .nav-tab.active { border-color: #7dd3fc; background: rgba(125, 211, 252, 0.15); }
+.inv-dashboard { max-width: 1200px; }
+.inv-chart { min-height: 340px; padding: 0.5rem; }
+.inv-chart-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: -0.4rem 0 0.85rem;
+}
+.inv-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+.inv-card {
+  padding: 1rem 1.05rem 1.05rem;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.inv-card-highlight {
+  border-color: rgba(255, 107, 157, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 107, 157, 0.2);
+}
+.inv-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.inv-card-kicker {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+.inv-card h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.inv-lev {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.inv-card-note { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+.inv-dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.7rem;
+}
+.inv-dl dt {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.inv-dl dd {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.inv-card-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+.inv-pnl {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.inv-pnl.up { color: var(--buy); }
+.inv-pnl.down { color: var(--sell); }
+.inv-roi { font-size: 0.75rem; color: var(--muted); }
+.inv-table { min-width: 860px; }
+
+@media (max-width: 700px) {
+  .inv-cards { grid-template-columns: 1fr; }
+  .inv-chart { min-height: 280px; }
+}

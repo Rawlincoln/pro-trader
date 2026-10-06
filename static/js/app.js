@@ -25,6 +25,24 @@ setInterval(() => {
     .catch(() => {});
 }, 45000);
 
+socket?.on("quote_update", (quote) => {
+  if (!quote || (quote.asset_id && quote.asset_id !== ASSET.id)) return;
+  if (quote.price == null) return;
+  renderQuote(quote, ASSET.decimals);
+  if (lastData) lastData.quote = quote;
+});
+
+setInterval(() => {
+  fetch(`/api/quote/${ASSET.id}`)
+    .then((r) => r.json())
+    .then((quote) => {
+      if (!quote || quote.price == null || quote.error) return;
+      renderQuote(quote, ASSET.decimals);
+      if (lastData) lastData.quote = quote;
+    })
+    .catch(() => {});
+}, 4000);
+
 socket?.on("market_update", (data) => {
   if (data.asset_id && data.asset_id !== ASSET.id) return;
   if (data.error) {
@@ -483,6 +501,13 @@ function renderQuote(quote, decimals) {
     const sign = quote.change >= 0 ? "+" : "";
     changeEl.textContent = `${sign}${fmtPrice(quote.change, decimals)} (${sign}${quote.change_pct?.toFixed(2) || "0"}%)`;
     changeEl.className = "change " + (quote.change >= 0 ? "up" : "down");
+  }
+  const label = document.querySelector(".lcd-label");
+  if (label) {
+    const src = quote.source || "";
+    const spot = src.startsWith("gold-api") || src.includes("PAXG");
+    label.textContent = spot ? "Live spot" : "Live price";
+    label.title = src || "live";
   }
 }
 

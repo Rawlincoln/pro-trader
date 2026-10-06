@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investments — Pro Trader</title>
+  <link rel="stylesheet" href="/static/css/style.css?v=17">
+  <link rel="stylesheet" href="/static/css/aurora-theme.css?v=2">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body class="investments-page aurora">
+  <header class="header simple-header au-bar">
+    <div class="header-left">
+      <div class="brand-soft">
+        <span class="brand-name">Pro Trader</span>
+      </div>
+      <nav class="nav-tabs">
+        {% for a in assets %}
+        <a href="{{ a.route }}" class="nav-tab">{{ a.name }}</a>
+        {% endfor %}
+        <a href="/balance" class="nav-tab">Balance</a>
+        <a href="/investments" class="nav-tab active">Investments</a>
+      </nav>
+    </div>
+    <div class="header-right simple-price">
+      <div class="au-price-well">
+        <span class="lcd-label">Books · KES</span>
+        <span id="inv-hero-count" class="price lcd-digits">5</span>
+        <span class="change">leveraged NSE</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="dashboard balance-dashboard inv-dashboard">
+    <section class="bs-hero card au-panel" id="inv-hero">
+      <div class="bs-hero-label profit" id="inv-status-label">Leveraged stock books</div>
+      <div class="bs-hero-pnl up" id="inv-total-pnl">—</div>
+      <div class="bs-hero-sub" id="inv-hero-sub">Net P&amp;L after 2% entry and 3% exit fees</div>
+      <div class="bs-hero-meta" id="inv-hero-meta">Past 12 months · August 2026 Safaricom book highlighted</div>
+    </section>
+
+    <section class="bs-metrics card au-panel">
+      <div class="bs-metric"><span class="label">Gross invested</span><span class="value" id="inv-invested">—</span></div>
+      <div class="bs-metric"><span class="label">Entry fees (2%)</span><span class="value" id="inv-entry-fees">—</span></div>
+      <div class="bs-metric"><span class="label">Gross returns</span><span class="value" id="inv-gross-returns">—</span></div>
+      <div class="bs-metric"><span class="label">Exit fees (3%)</span><span class="value" id="inv-exit-fees">—</span></div>
+      <div class="bs-metric"><span class="label">Net received</span><span class="value" id="inv-net-proceeds">—</span></div>
+      <div class="bs-metric"><span class="label">Net ROI</span><span class="value up" id="inv-roi">—</span></div>
+    </section>
+
+    <section class="card au-panel">
+      <div class="chart-card-header">
+        <h2>Leveraged value · past 12 months</h2>
+      </div>
+      <p class="inv-chart-note">Each line is a book: 2% taken at entry, mark-to-market with leverage, then 3% taken on gross returns at exit. The August Safaricom 5× book is the latest.</p>
+      <div id="inv-chart" class="bs-chart inv-chart au-inset"></div>
+    </section>
+
+    <section class="card au-panel">
+      <h2>Five portfolios</h2>
+      <div id="inv-cards" class="inv-cards"></div>
+    </section>
+
+    <section class="card au-panel">
+      <h2>Fee &amp; return ledger</h2>
+      <div id="inv-table" class="bs-table-wrap"></div>
+    </section>
+  </main>
+
+  <footer class="footer simple-footer">
+    <p>Educational only · Not financial advice · Leveraged stock CFDs can lose more than the cash deployed</p>
+  </footer>
+
+  <script src="/static/js/investments.js?v=1"></script>
+</body>
+</html>

@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ asset.title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=16">
-  <link rel="stylesheet" href="/static/css/aurora-theme.css?v=1">
+  <link rel="stylesheet" href="/static/css/style.css?v=17">
+  <link rel="stylesheet" href="/static/css/aurora-theme.css?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
@@ -22,6 +22,7 @@
         <a href="{{ a.route }}" class="nav-tab{% if a.id == active_asset %} active{% endif %}">{{ a.name }}</a>
         {% endfor %}
         <a href="/balance" class="nav-tab">Balance</a>
+        <a href="/investments" class="nav-tab">Investments</a>
       </nav>
     </div>
     <div class="header-right simple-price">
@@ -344,6 +345,6 @@
   <script src="/static/js/chart-tools.js?v=5"></script>
   <script src="/static/js/trade-alerts.js?v=6"></script>
   <script src="/static/js/signal-audit.js?v=1"></script>
-  <script src="/static/js/app.js?v=19"></script>
+  <script src="/static/js/app.js?v=20"></script>
 </body>
 </html>

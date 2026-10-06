@@ -67,6 +67,7 @@ from data.signal_audit import (
     run_daily_audit_cycle,
 )
 from data.ftmo_mode import apply_ftmo_gate, ftmo_enabled, ftmo_telegram_suffix, load_ftmo_profile
+from data.investments import build_investments_snapshot
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ _cache: dict[str, dict] = {}
 _cache_lock = threading.Lock()
 _refreshing: set[str] = set()
 REFRESH_INTERVAL = 30
-PRICE_WATCH_INTERVAL = 15
+PRICE_WATCH_INTERVAL = 8
 WORKER_STALE_SEC = 180  # if no heartbeat, restart worker
 
 
@@ -239,7 +240,7 @@ def run_analysis(asset_id: str = DEFAULT_ASSET) -> dict:
                 signal_source = "technical"
 
         # Rebuild plan from final signal (news/attention may have changed it)
-        price = full["analysis_1h"]["indicators"].get("price") or quote.get("price") or 0
+        price = quote.get("price") or full["analysis_1h"]["indicators"].get("price") or 0
         atr_val = full["analysis_1h"]["indicators"].get("atr")
         trade_plan = generate_trade_plan(
             signal=final_signal,
@@ -715,32 +716,43 @@ def background_news_monitor():
         _bg_sleep(45 if IS_CLOUD else 30)
 
 
+def _patch_cached_quote(asset_id: str, quote: dict) -> None:
+    """Keep the analysis payload's displayed price in sync between full refreshes."""
+    if not quote or not quote.get("price"):
+        return
+    with _cache_lock:
+        entry = _cache.get(asset_id)
+        data = (entry or {}).get("data")
+        if not data or data.get("error"):
+            return
+        data["quote"] = quote
+
+
 def background_price_watch():
-    """Fast price loop for entry/exit level hits on all symbols."""
+    """Fast price loop: push live quotes and check entry/exit hits."""
     while True:
         _beat("price")
         try:
             config = load_alert_config()
-            if not config.get("enabled"):
-                _bg_sleep(PRICE_WATCH_INTERVAL)
-                continue
+            alerts_on = bool(config.get("enabled"))
             for asset_id in ASSETS:
-                if not config.get("symbols", {}).get(asset_id, True):
-                    continue
-                entry = _get_cache_entry(asset_id)
-                cached = entry.get("data")
-                if not cached or cached.get("error"):
-                    continue
                 try:
                     quote = fetch_live_quote(asset_id)
-                    live_price = float(quote.get("price", 0))
+                    live_price = float(quote.get("price", 0) or 0)
                     if not live_price:
+                        continue
+                    _patch_cached_quote(asset_id, quote)
+                    socketio.emit("quote_update", quote, room=asset_id)
+                    if not alerts_on or not config.get("symbols", {}).get(asset_id, True):
+                        continue
+                    entry = _get_cache_entry(asset_id)
+                    cached = entry.get("data")
+                    if not cached or cached.get("error"):
                         continue
                     alerts, _ = detect_price_alerts(asset_id, cached, live_price, config=config)
                     if alerts:
                         dispatch_alerts(alerts, config)
                         _emit_trade_alerts(alerts)
-                    # Score open signal-audit journal entries against live price
                     try:
                         evaluate_open_signals(prices={asset_id: live_price})
                     except Exception as exc:
@@ -1051,6 +1063,18 @@ def balance_page():
     return resp
 
 
+@app.route("/investments")
+def investments_page():
+    resp = app.make_response(render_template("investments.html", assets=list_assets()))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
+@app.route("/api/investments")
+def api_investments():
+    return jsonify(build_investments_snapshot())
+
+
 @app.route("/api/mt5/status")
 def api_mt5_status():
     return jsonify(get_mt5_status())
@@ -1225,6 +1249,17 @@ def background_ledger_sync():
         except Exception as exc:
             logger.warning("Ledger sync error: %s", exc)
             _bg_sleep(60)
+
+
+@app.route("/api/quote")
+@app.route("/api/quote/<asset_id>")
+def api_quote(asset_id: str = DEFAULT_ASSET):
+    if asset_id not in ASSETS:
+        return jsonify({"error": "unknown asset"}), 404
+    quote = fetch_live_quote(asset_id)
+    if quote.get("price"):
+        _patch_cached_quote(asset_id, quote)
+    return jsonify(quote)
 
 
 @app.route("/api/analysis")
