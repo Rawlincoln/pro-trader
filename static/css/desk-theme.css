@@ -1,0 +1,555 @@
+/* ==========================================================================
+   DESK THEME — professional trading terminal
+   Inspired by FTMO MetriX / XM members: near-black surfaces, azure accent,
+   green/red only for P&L. No civic serif, no aurora, no Kenya banner.
+   ========================================================================== */
+body.desk {
+  --desk-bg: #09090b;
+  --desk-s1: #121317;
+  --desk-s2: #181a20;
+  --desk-s3: #1e2128;
+  --desk-line: #2a2d36;
+  --desk-line-2: #3a3e48;
+  --desk-text: #e8eaee;
+  --desk-muted: #8b919c;
+  --desk-faint: #6b7280;
+  --desk-blue: #0781fe;
+  --desk-cyan: #5ec8ff;
+  --desk-buy: #16c784;
+  --desk-sell: #ea3943;
+  --desk-wait: #f5a524;
+  --desk-radius: 10px;
+
+  --bg: var(--desk-bg);
+  --card: var(--desk-s1);
+  --border: var(--desk-line);
+  --text: var(--desk-text);
+  --muted: var(--desk-muted);
+  --buy: var(--desk-buy);
+  --sell: var(--desk-sell);
+  --wait: var(--desk-wait);
+  --accent: var(--desk-blue);
+  --entry: var(--desk-cyan);
+  --sl: var(--desk-sell);
+  --tp: var(--desk-buy);
+
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  color: var(--desk-text);
+  background: var(--desk-bg);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.desk .skip {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  background: var(--desk-blue);
+  color: #fff;
+  padding: 8px 12px;
+  z-index: 40;
+}
+body.desk .skip:focus { left: 8px; }
+
+/* Thin terminal strip — not a flag banner */
+body.desk .gl-banner {
+  background: var(--desk-s1);
+  border-bottom: 1px solid var(--desk-line);
+  color: var(--desk-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+body.desk .gl-banner-inner {
+  width: min(1280px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 6px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+body.desk .header,
+body.desk .gl-bar.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--desk-s1);
+  border-bottom: 1px solid var(--desk-line);
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0 16px;
+  min-height: 56px;
+  color: var(--desk-text);
+}
+body.desk .header-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 20px;
+}
+body.desk .gl-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--desk-text);
+  text-decoration: none;
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+body.desk .gl-brand:hover { color: #fff; text-decoration: none; }
+body.desk .gl-brand b { color: var(--desk-blue); font-weight: 800; }
+body.desk .gl-brand img { width: 26px; height: 26px; display: block; border-radius: 6px; }
+body.desk .header h1 {
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--desk-text);
+  font-family: inherit;
+}
+body.desk .subtitle { color: var(--desk-muted); font-size: 0.78rem; }
+
+body.desk .nav-tabs {
+  margin-top: 0;
+  gap: 2px;
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  padding: 3px;
+}
+body.desk .nav-tab {
+  color: var(--desk-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  box-shadow: none;
+}
+body.desk .nav-tab:hover {
+  color: var(--desk-text);
+  background: var(--desk-s3);
+  border: 0;
+  transform: none;
+}
+body.desk .nav-tab.active,
+body.desk.asset-gold .nav-tab.active,
+body.desk.asset-bitcoin .nav-tab.active {
+  color: #fff;
+  background: var(--desk-blue);
+  border: 0;
+  box-shadow: none;
+}
+
+body.desk .au-price-well,
+body.desk .gl-price {
+  text-align: right;
+  min-width: 9.5rem;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+body.desk .lcd-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--desk-faint);
+}
+body.desk .lcd-digits,
+body.desk .au-price-well .price,
+body.desk .gl-price .price {
+  font-family: "IBM Plex Mono", ui-monospace, monospace !important;
+  font-size: 1.28rem !important;
+  font-weight: 500;
+  color: #fff !important;
+  text-shadow: none;
+  letter-spacing: -0.02em;
+}
+body.desk .change {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+body.desk .change.up { color: var(--desk-buy); text-shadow: none; }
+body.desk .change.down { color: var(--desk-sell); text-shadow: none; }
+body.desk .status { color: var(--desk-muted); font-weight: 500; font-size: 0.75rem; }
+body.desk .status-dot.online {
+  background: var(--desk-buy);
+  box-shadow: 0 0 0 3px rgba(22, 199, 132, 0.18);
+}
+body.desk .status-dot.offline {
+  background: var(--desk-sell);
+  box-shadow: 0 0 0 3px rgba(234, 57, 67, 0.18);
+}
+
+body.desk .dashboard,
+body.desk .footer { position: relative; z-index: 1; }
+body.desk .simple-dashboard {
+  max-width: 1280px;
+  padding: 16px 14px 110px;
+  gap: 12px;
+}
+body.desk .balance-dashboard { max-width: 1280px; padding: 16px 14px 110px; }
+
+body.desk .card,
+body.desk .au-panel,
+body.desk .action-card {
+  background: var(--desk-s1);
+  border: 1px solid var(--desk-line);
+  border-radius: var(--desk-radius);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+body.desk .card h2,
+body.desk .simple-more > summary {
+  font-family: inherit;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--desk-muted);
+  font-size: 0.72rem;
+}
+body.desk .au-inset,
+body.desk .chart-wrap {
+  background: #0c0d10;
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  box-shadow: none;
+}
+body.desk .au-tile,
+body.desk .al-box,
+body.desk .bs-metric {
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+body.desk .action-card {
+  padding: 1.15rem 1.15rem 1.05rem;
+  overflow: hidden;
+  border-left-width: 3px;
+}
+body.desk .action-card::before,
+body.desk .action-card::after { display: none; }
+body.desk .action-card.buy { border-left-color: var(--desk-buy); }
+body.desk .action-card.sell { border-left-color: var(--desk-sell); }
+body.desk .action-card.wait { border-left-color: var(--desk-wait); }
+body.desk .action-kicker {
+  color: var(--desk-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+body.desk .action-verb {
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: none;
+  max-width: none;
+  font-size: clamp(1.5rem, 4vw, 2.15rem);
+}
+body.desk .action-card.buy .action-verb { color: var(--desk-buy); }
+body.desk .action-card.sell .action-verb { color: var(--desk-sell); }
+body.desk .action-card.wait .action-verb { color: var(--desk-wait); }
+body.desk .action-plain { color: var(--desk-muted); font-size: 0.95rem; max-width: 46ch; }
+
+body.desk .action-conf,
+body.desk .action-conf.au-orb {
+  min-width: 7.4rem;
+  aspect-ratio: auto;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line);
+  box-shadow: none;
+  backdrop-filter: none;
+  text-align: left;
+  align-items: flex-start;
+}
+body.desk .action-conf-label {
+  color: var(--desk-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+body.desk .action-conf-value {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: none;
+}
+body.desk .action-conf-bias {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--desk-muted);
+  margin-top: 2px;
+}
+body.desk .action-conf.bias-bullish .action-conf-value,
+body.desk .action-conf.bias-bullish .action-conf-bias { color: var(--desk-buy); }
+body.desk .action-conf.bias-bearish .action-conf-value,
+body.desk .action-conf.bias-bearish .action-conf-bias { color: var(--desk-sell); }
+body.desk .action-conf.bias-bullish { border-color: rgba(22, 199, 132, 0.45); }
+body.desk .action-conf.bias-bearish { border-color: rgba(234, 57, 67, 0.45); }
+
+body.desk .grade-badge,
+body.desk .session-badge,
+body.desk .size-badge,
+body.desk .check-chip,
+body.desk .a-plus-badge,
+body.desk .ftmo-pill {
+  border-radius: 4px;
+  border: 1px solid var(--desk-line);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  box-shadow: none;
+  text-shadow: none;
+  background: var(--desk-s2);
+  color: var(--desk-muted);
+}
+body.desk .grade-badge.grade-a,
+body.desk .grade-badge.grade-b,
+body.desk .check-chip.ok,
+body.desk .ftmo-pill.take,
+body.desk .a-plus-badge.take {
+  background: rgba(22, 199, 132, 0.12);
+  color: var(--desk-buy);
+  border-color: rgba(22, 199, 132, 0.35);
+}
+body.desk .grade-badge.grade-c,
+body.desk .session-badge.sess-low {
+  background: rgba(245, 165, 36, 0.12);
+  color: var(--desk-wait);
+  border-color: rgba(245, 165, 36, 0.35);
+}
+body.desk .grade-badge.grade-d,
+body.desk .grade-badge.grade-f,
+body.desk .ftmo-pill.skip {
+  background: rgba(234, 57, 67, 0.12);
+  color: var(--desk-sell);
+  border-color: rgba(234, 57, 67, 0.35);
+}
+body.desk .session-badge.sess-best,
+body.desk .session-badge.sess-high {
+  background: rgba(7, 129, 254, 0.12);
+  color: var(--desk-cyan);
+  border-color: rgba(7, 129, 254, 0.35);
+}
+
+body.desk .action-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  counter-reset: step;
+}
+body.desk .action-steps li {
+  list-style: none;
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  padding: 10px 12px 10px 42px;
+  position: relative;
+  font-size: 0.88rem;
+  color: var(--desk-text);
+}
+body.desk .action-steps li::before {
+  counter-increment: step;
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--desk-blue);
+  display: inline;
+  place-items: unset;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+body.desk .action-card.sell .action-steps li::before { background: none; color: var(--desk-sell); }
+body.desk .action-card.wait .action-steps li::before { background: none; color: var(--desk-muted); }
+body.desk .action-steps li::marker { content: none; }
+
+body.desk .al-box span { color: var(--desk-faint); letter-spacing: 0.08em; }
+body.desk .al-box strong {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--desk-text);
+}
+body.desk .al-box.entry { border-color: rgba(94, 200, 255, 0.28); }
+body.desk .al-box.entry strong { color: var(--desk-cyan); }
+body.desk .al-box.sl { border-color: rgba(234, 57, 67, 0.35); }
+body.desk .al-box.sl strong { color: var(--desk-sell); }
+body.desk .al-box.tp { border-color: rgba(22, 199, 132, 0.3); }
+body.desk .al-box.tp strong { color: var(--desk-buy); }
+body.desk .al-box.rr strong { color: var(--desk-text); }
+
+body.desk .action-why,
+body.desk .action-grade-reasons,
+body.desk .action-size-note,
+body.desk .a-plus-sub,
+body.desk .a-plus-note { color: var(--desk-muted); }
+
+body.desk .a-plus-steps {
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  margin: 12px 0;
+}
+body.desk .a-plus-steps li {
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--desk-text);
+  font-size: 0.88rem;
+}
+
+body.desk .user-levels-banner {
+  background: rgba(7, 129, 254, 0.08);
+  border: 1px solid rgba(7, 129, 254, 0.28);
+  color: var(--desk-cyan);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+body.desk .refresh-btn,
+body.desk .ta-btn,
+body.desk .chart-expand-btn,
+body.desk .chart-fs-close,
+body.desk .au-btn {
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line-2);
+  color: var(--desk-text);
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.82rem;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+body.desk .refresh-btn,
+body.desk .ta-btn.primary,
+body.desk .au-btn {
+  background: var(--desk-blue);
+  border-color: transparent;
+  color: #fff;
+}
+body.desk .refresh-btn:hover,
+body.desk .ta-btn.primary:hover { background: #046ae0; }
+body.desk .ta-tg-row input,
+body.desk .bs-mfb-form input {
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line);
+  border-radius: 6px;
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+body.desk .news-item,
+body.desk .event-item,
+body.desk .simple-list { color: var(--desk-text); }
+body.desk .news-item,
+body.desk .event-item {
+  background: var(--desk-s2);
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+}
+body.desk .news-title a { color: var(--desk-cyan); }
+body.desk .news-meta { color: var(--desk-muted); }
+
+body.desk .simple-footer {
+  border-top: 1px solid var(--desk-line);
+  padding: 16px 14px 36px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+body.desk .simple-footer p,
+body.desk .footer p { color: var(--desk-muted); font-size: 12px; }
+body.desk .chart-fullscreen { background: rgba(9, 9, 11, 0.96); }
+
+body.desk.balance-page .bs-hero-pnl {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-weight: 600;
+}
+body.desk.balance-page .bs-hero-pnl.up { color: var(--desk-buy); }
+body.desk.balance-page .bs-hero-pnl.down { color: var(--desk-sell); }
+body.desk.balance-page .bs-hero-label.profit { color: var(--desk-buy); }
+body.desk.balance-page .bs-hero-label.loss { color: var(--desk-sell); }
+body.desk.balance-page .bs-table th {
+  color: var(--desk-muted);
+  background: var(--desk-s2);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+body.desk.balance-page .bs-table td { border-bottom-color: var(--desk-line); font-family: "IBM Plex Mono", ui-monospace, monospace; }
+body.desk.balance-page .bs-table td.up { color: var(--desk-buy); }
+body.desk.balance-page .bs-table td.down { color: var(--desk-sell); }
+
+body.desk .gl-mobile-nav {
+  display: none;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: var(--desk-s1);
+  border-top: 1px solid var(--desk-line);
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  z-index: 30;
+  grid-template-columns: repeat(4, 1fr);
+}
+body.desk .gl-mobile-nav a {
+  color: var(--desk-muted);
+  text-align: center;
+  font-size: 11px;
+  font-weight: 650;
+  text-decoration: none;
+  padding: 8px 4px;
+  border-radius: 6px;
+}
+body.desk .gl-mobile-nav a.active {
+  color: #fff;
+  background: var(--desk-blue);
+}
+
+@media (max-width: 860px) {
+  body.desk .nav-tabs { display: none; }
+  body.desk .gl-mobile-nav { display: grid; }
+  body.desk .simple-dashboard,
+  body.desk .balance-dashboard { padding-bottom: 108px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.desk * { transition: none !important; animation: none !important; }
+}
